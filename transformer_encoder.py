@@ -23,15 +23,15 @@ class TransformerEncoderWrapper(nn.Module):
         # Create the TransformerEncoder
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
 
-    def forward(self, src):
+    def forward(self, input_data):
         """
         Forward pass.
 
         Args:
-            src (torch.Tensor): The input of shape (seq_len, batch_size, d_model).
+            input_data (torch.Tensor): The input of shape (seq_len, batch_size, d_model), positionally encoded.
 
         Returns:
             torch.Tensor: The encoded output of shape (seq_len, batch_size, d_model).
         """
-        output = self.transformer_encoder(src)
+        output = self.transformer_encoder(input_data)
         return output

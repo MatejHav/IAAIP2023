@@ -4,6 +4,7 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
+
 """
 Based of https://github.com/cardwing/Codes-for-Lane-Detection/blob/master/ERFNet-CULane-PyTorch/dataset/voc_aug.py 
 """
@@ -30,7 +31,7 @@ CATEGORIES = {
 
 
 class CULaneDataset(Dataset):
-    def __init__(self, dataset_path='/home/charles/Desktop/IAAIP-Transformer/culane/data/list', data_list='train_gt', transform=None):
+    def __init__(self, dataset_path='/Users/charlesdowns/Documents/GitHub/IAAIP2023/culane/data/list', data_list='train_gt', transform=None):
         with open(os.path.join(dataset_path, data_list + '.txt')) as f:
             self.img_list = []
             self.img = []
@@ -53,11 +54,19 @@ class CULaneDataset(Dataset):
 
     def __len__(self):
         return len(self.img_list)
+    
+    def read_annotation(self, label_path):
+        with open(label_path, 'r') as f:
+            lines = f.readlines()
+        coords = []
+        for line in lines:
+            coords.append([int(line.strip().split(' ')[0]), int(line.strip().split(' ')[1])])
+        return coords
 
 
     def __getitem__(self, idx):
         image = cv2.imread(os.path.join(self.img_path, self.img_list[idx])).astype(np.uint8)  # Use uint8 data type
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB order
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB order
         label = cv2.imread(os.path.join(self.gt_path, self.label_list[idx]), cv2.IMREAD_UNCHANGED)
         exist = self.exist_list[idx]
         label = label.squeeze()

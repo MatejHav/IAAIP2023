@@ -23,9 +23,44 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
-
+#
 
 class LaneDataset(Dataset):
+
+    """
+    A PyTorch dataset class to handle lane detection data. 
+    It abstracts the data loading, preprocessing, augmentation, and conversion to model-friendly formats.
+
+    Args:
+            S (int): Number of strips.
+            dataset (str): Dataset type ('culane' supported).
+            augmentations (list): List of data augmentation configurations.
+            normalize (bool): Whether to normalize image data.
+            img_size (tuple): Tuple representing the image size (height, width).
+            aug_chance (float): Probability of applying augmentations.
+            **kwargs: Additional keyword arguments.
+
+    ttributes:
+            annotations: List of dataset annotations.
+            n_strips (int): Number of strips.
+            n_offsets (int): Number of offsets.
+            strip_size (float): Size of each strip.
+            img_h (int): Image height.
+            img_w (int): Image width.
+
+    Methods:
+            transform_annotations(): Transform dataset annotations to the model's target format.
+            filter_lane(lane): Filter duplicate Y-coordinates from a lane.
+            transform_annotation(anno, img_wh=None): Transform an annotation to the model's target format.
+            sample_lane(points, sample_ys): Sample points along a lane.
+            label_to_lanes(label): Convert labels to lane objects.
+            draw_annotation(idx, label=None, pred=None, img=None): Visualize annotations and predictions on an image.
+            lane_to_linestrings(lanes): Convert lanes to LineString objects.
+            linestrings_to_lanes(lines): Convert LineString objects to lanes.
+            __getitem__(idx): Retrieve an item (image and label) from the dataset.
+            __len__(): Get the length of the dataset.
+    """
+
     def __init__(self,
                  S=72,
                  dataset='culane',
@@ -34,6 +69,34 @@ class LaneDataset(Dataset):
                  img_size=(590, 1640),
                  aug_chance=1.,
                  **kwargs):
+        """
+        Initialize the LaneDataset with specified parameters.
+
+        Args:
+            S (int): Number of strips. Images often have a high resolution along the vertical axis (height), especially in cases
+              where the road or lane stretches out ahead. Instead of processing the lane annotations or detecting lanes at each i
+              ndividual pixel row, it's computationally more efficient and sometimes more robust to split the image into horizontal
+                strips and detect lanes within these strips.
+                For instance, consider an image of height H. If S = 72, then each strip's height is H/71 (because n_strips = S - 1).
+                The lane detection algorithm will then only need to work with 71 strips as opposed to H individual rows, 
+                thus reducing computational complexity.
+
+                Within each strip, the algorithm might:
+
+                    Interpolate or extrapolate lane positions.
+                    Determine if a lane is present or not.
+                    Decide other lane-related characteristics.
+
+                By working with strips, the algorithm also becomes more robust against noise or small irregularities, since it processes a chunk of pixels together as opposed to individual rows.
+
+                In summary, S (and hence n_strips) allows the algorithm to work with a down-sampled version of the vertical axis of the image, making it both efficient and robust.
+            dataset (str): Dataset type ('culane' supported).
+            augmentations (list): List of data augmentation configurations.
+            normalize (bool): Whether to normalize image data.
+            img_size (tuple): Tuple representing the image size (height, width).
+            aug_chance (float): Probability of applying augmentations.
+            **kwargs: Additional keyword arguments.
+        """
         super(LaneDataset, self).__init__()
         # if dataset == 'tusimple':
         #     self.dataset = TuSimple(**kwargs)
@@ -72,12 +135,26 @@ class LaneDataset(Dataset):
     def annotations(self):
         return self.dataset.annotations
 
+
     def transform_annotations(self):
+        """
+        Transform dataset annotations to the model's target format.
+        """
         self.logger.info("Transforming annotations to the model's target format...")
         self.dataset.annotations = np.array(list(map(self.transform_annotation, self.dataset.annotations)))
         self.logger.info('Done.')
 
+
     def filter_lane(self, lane):
+        """
+        Filters lane points, removing those with duplicate y-values.
+        
+        Args:
+            lane (list): List of [x, y] coordinates representing the lane.
+            
+        Returns:
+            list: Filtered lane with unique y-values.
+        """
         assert lane[-1][1] <= lane[0][1]
         filtered_lane = []
         used = set()
@@ -88,7 +165,21 @@ class LaneDataset(Dataset):
 
         return filtered_lane
 
+
+
     def transform_annotation(self, anno, img_wh=None):
+        """
+        Transforms an annotation from its original format to the format 
+        that the model expects.
+        
+        Args:
+            anno (dict): Original annotation.
+            img_wh (tuple, optional): Width and height of the image. If not provided, 
+                                      these will be derived from the annotation.
+                                      
+        Returns:
+            dict: Transformed annotation.
+        """
         if img_wh is None:
             img_h = self.dataset.get_img_heigth(anno['path'])
             img_w = self.dataset.get_img_width(anno['path'])
@@ -131,6 +222,17 @@ class LaneDataset(Dataset):
         return new_anno
 
     def sample_lane(self, points, sample_ys):
+        """
+        Given a set of lane points and y-values, interpolates/extrapolates x-values for these y-values.
+        
+        Args:
+            points (list): List of [x, y] coordinates representing the lane.
+            sample_ys (list): y-values to sample from the lane.
+            
+        Returns:
+            tuple: xs_outside_image (x-values extrapolated outside the image), 
+                   xs_inside_image (x-values interpolated inside the image).
+        """
         # this function expects the points to be sorted
         points = np.array(points)
         if not np.all(points[1:, 1] < points[:-1, 1]):
@@ -161,6 +263,15 @@ class LaneDataset(Dataset):
         return xs_outside_image, xs_inside_image
 
     def label_to_lanes(self, label):
+        """
+        Convert labels to lane objects.
+
+        Args:
+            label (np.ndarray): Model output labels.
+
+        Returns:
+            list: List of lane objects.
+        """
         lanes = []
         for l in label:
             if l[1] == 0:
@@ -179,6 +290,20 @@ class LaneDataset(Dataset):
         return lanes
 
     def draw_annotation(self, idx, label=None, pred=None, img=None):
+        """
+        Visualize annotations and predictions on an image.
+
+        Args:
+            idx (int): Index of the dataset item.
+            label (np.ndarray): Ground truth labels.
+            pred (np.ndarray): Predicted labels.
+            img (np.ndarray): Input image.
+
+        Returns:
+            np.ndarray: Image with visualized annotations and predictions.
+            int: False positives.
+            int: False negatives.
+        """
         # Get image if not provided
         if img is None:
             # print(self.annotations[idx]['path'])
@@ -271,7 +396,8 @@ class LaneDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
-        img_org = cv2.imread(item['path'])
+        img_org = cv2.imread(item['path'])  
+        cv2.waitKey(0)
         line_strings_org = self.lane_to_linestrings(item['old_anno']['lanes'])
         line_strings_org = LineStringsOnImage(line_strings_org, shape=img_org.shape)
         for i in range(30):

@@ -34,7 +34,7 @@ class CULane(LaneDatasetLoader):
         self.split = split
         self.root = root
         self.official_metric = official_metric
-        # self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
 
         if root is None:
             raise Exception('Please specify the root directory')
@@ -117,8 +117,7 @@ class CULane(LaneDatasetLoader):
             with open(cache_path, 'w') as cache_file:
                 json.dump({'annotations': self.annotations, 'max_lanes': self.max_lanes}, cache_file)
 
-        print('{} annotations loaded, with a maximum of {} lanes in an image.', len(self.annotations),
-                         self.max_lanes)
+        print(len(self.annotations), 'annotations loaded, with a maximum of', self.max_lanes, ' lanes in an image.')
 
     def get_prediction_string(self, pred):
         ys = np.arange(self.img_h) / self.img_h

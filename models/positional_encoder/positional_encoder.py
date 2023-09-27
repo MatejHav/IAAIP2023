@@ -19,9 +19,10 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
         position = torch.arange(max_len).unsqueeze(1)
-        total_dim = np.prod(dim)
+        total_dim = int(np.prod(dim))
         div_term = torch.exp(torch.arange(0, total_dim, 2) * (-math.log(10000.0) / total_dim))
         pe = torch.zeros(max_len, 1, total_dim)
+        # TODO Make work if total_dim would be odd (there is 1 extra dimension then for cos)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * div_term)
         pe = torch.reshape(pe, (max_len, *dim))

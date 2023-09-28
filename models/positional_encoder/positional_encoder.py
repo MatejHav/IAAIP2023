@@ -49,5 +49,8 @@ if __name__ == "__main__":
         [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
         [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
     ])
-    positional_encoder = PositionalEncoding((10,), 0.1, 50)
-    print(positional_encoder(test))
+    # positional_encoder = PositionalEncoding((10,), 0.1, 50)
+    pe = PositionalEncoding((8,8), 0.2, 512)
+    test_tensor = torch.randn(32, 512, 8, 8)
+    print(test_tensor.shape)
+    print(pe.forward(test_tensor).shape)

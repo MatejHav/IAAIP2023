@@ -51,7 +51,7 @@ if __name__ == "__main__":
     backbone = ResNet18Backbone()
     
     # Load an example input image
-    input_image = torch.randn(4, 3, 224, 224)  # Batch size of 1, RGB image with size 224x224
+    input_image = torch.randn(32, 3, 224, 224)  # Batch size of 1, RGB image with size 224x224
     
     # Forward pass through the backbone to extract features
     features = backbone(input_image)

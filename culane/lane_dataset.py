@@ -11,7 +11,7 @@ from imgaug.augmentables.lines import LineString, LineStringsOnImage
 
 from lib.lane import Lane
 
-from culane2 import CULane
+from culane import CULane
 # from .tusimple import TuSimple
 # from .llamas import LLAMAS
 # from .nolabel_dataset import NoLabelDataset
@@ -21,6 +21,7 @@ PRED_HIT_COLOR = (0, 255, 0)
 PRED_MISS_COLOR = (0, 0, 255)
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
+GROUND_TRUTH_GRID = (64, 160)
 
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
@@ -66,7 +67,7 @@ class LaneDataset(Dataset):
                  dataset='culane',
                  augmentations=None,
                  normalize=False,
-                 img_size=(590, 1640),
+                 img_size=(320, 800),
                  aug_chance=1.,
                  **kwargs):
         """
@@ -194,75 +195,36 @@ class LaneDataset(Dataset):
         old_lanes = [sorted(lane, key=lambda x: -x[1]) for lane in old_lanes]
         # remove points with same Y (keep first occurrence)
         old_lanes = [self.filter_lane(lane) for lane in old_lanes]
-        # normalize the annotation coordinates
-        old_lanes = [[[x * self.img_w / float(img_w), y * self.img_h / float(img_h)] for x, y in lane]
+        # normalize the annotation coordinates between 0 and 1
+        old_lanes = [[(x / float(img_w), y / float(img_h)) for x, y in lane]
                      for lane in old_lanes]
         # create tranformed annotations
-        lanes = np.ones((self.dataset.max_lanes, 2 + 1 + 1 + 1 + self.n_offsets),
-                        dtype=np.float32) * -1e5  # 2 scores, 1 start_y, 1 start_x, 1 length, S+1 coordinates
-        # lanes are invalid by default
-        lanes[:, 0] = 1
-        lanes[:, 1] = 0
+        # 32 samples of y coordinate
+        # 80 samples of x coordinate
+        # 3 -> length, angle, probability
+        lanes = np.zeros((GROUND_TRUTH_GRID[0], GROUND_TRUTH_GRID[1], 3), dtype=np.float32)
+
         for lane_idx, lane in enumerate(old_lanes):
-            try:
-                xs_outside_image, xs_inside_image = self.sample_lane(lane, self.offsets_ys)
-            except AssertionError:
-                continue
-            if len(xs_inside_image) == 0:
-                continue
-            all_xs = np.hstack((xs_outside_image, xs_inside_image))
-            lanes[lane_idx, 0] = 0
-            lanes[lane_idx, 1] = 1
-            lanes[lane_idx, 2] = len(xs_outside_image) / self.n_strips
-            lanes[lane_idx, 3] = xs_inside_image[0]
-            lanes[lane_idx, 4] = len(xs_inside_image)
-            lanes[lane_idx, 5:5 + len(all_xs)] = all_xs
+            # Last point will be added automatically with the length property of lanes
+            for index, point in enumerate(lane[:-1]):
+                next_point = lane[index + 1]
+                vector = (next_point[0] - point[0], next_point[1] - point[1])
+                # Length can be max sqrt(0.1**2 + 0.1**2) = 0.141
+                length = min(0.141, np.sqrt(vector[0]**2 + vector[1]**2))
+                # Angle: arctan(y/x)
+                angle = np.arctan(vector[1] / (vector[0] + 1e-5))
+                # Closest bin to the coordinates
+                y_bin = min(GROUND_TRUTH_GRID[0] - 1, int(point[1] * (GROUND_TRUTH_GRID[0] - 1)))
+                x_bin = min(GROUND_TRUTH_GRID[1] - 1, int(point[0] * (GROUND_TRUTH_GRID[1] - 1)))
+                lanes[y_bin, x_bin, 0] = length
+                lanes[y_bin, x_bin, 1] = angle
+                # Probability of ground truth is always 1
+                lanes[y_bin, x_bin, 2] = 1
 
         new_anno = {'path': anno['path'], 'label': lanes, 'old_anno': anno}
         return new_anno
 
-    def sample_lane(self, points, sample_ys):
-        """
-        Given a set of lane points and y-values, interpolates/extrapolates x-values for these y-values.
-        
-        Args:
-            points (list): List of [x, y] coordinates representing the lane.
-            sample_ys (list): y-values to sample from the lane.
-            
-        Returns:
-            tuple: xs_outside_image (x-values extrapolated outside the image), 
-                   xs_inside_image (x-values interpolated inside the image).
-        """
-        # this function expects the points to be sorted
-        points = np.array(points)
-        if not np.all(points[1:, 1] < points[:-1, 1]):
-            raise Exception('Annotaion points have to be sorted')
-        x, y = points[:, 0], points[:, 1]
-
-        # interpolate points inside domain
-        assert len(points) > 1
-        interp = InterpolatedUnivariateSpline(y[::-1], x[::-1], k=min(3, len(points) - 1))
-        domain_min_y = y.min()
-        domain_max_y = y.max()
-        sample_ys_inside_domain = sample_ys[(sample_ys >= domain_min_y) & (sample_ys <= domain_max_y)]
-        assert len(sample_ys_inside_domain) > 0
-        interp_xs = interp(sample_ys_inside_domain)
-
-        # extrapolate lane to the bottom of the image with a straight line using the 2 points closest to the bottom
-        two_closest_points = points[:2]
-        extrap = np.polyfit(two_closest_points[:, 1], two_closest_points[:, 0], deg=1)
-        extrap_ys = sample_ys[sample_ys > domain_max_y]
-        extrap_xs = np.polyval(extrap, extrap_ys)
-        all_xs = np.hstack((extrap_xs, interp_xs))
-
-        # separate between inside and outside points
-        inside_mask = (all_xs >= 0) & (all_xs < self.img_w)
-        xs_inside_image = all_xs[inside_mask]
-        xs_outside_image = all_xs[~inside_mask]
-
-        return xs_outside_image, xs_inside_image
-
-    def label_to_lanes(self, label):
+    def label_to_lanes(self, label, img):
         """
         Convert labels to lane objects.
 
@@ -272,21 +234,17 @@ class LaneDataset(Dataset):
         Returns:
             list: List of lane objects.
         """
+        img_height = img.shape[1]
+        img_width = img.shape[2]
         lanes = []
-        for l in label:
-            if l[1] == 0:
-                continue
-            xs = l[5:] / self.img_w
-            ys = self.offsets_ys / self.img_h
-            start = int(round(l[2] * self.n_strips))
-            length = int(round(l[4]))
-            xs = xs[start:start + length][::-1]
-            ys = ys[start:start + length][::-1]
-            xs = xs.reshape(-1, 1)
-            ys = ys.reshape(-1, 1)
-            points = np.hstack((xs, ys))
-
-            lanes.append(Lane(points=points))
+        for y in range(GROUND_TRUTH_GRID[0]):
+            for x in range(GROUND_TRUTH_GRID[1]):
+                if label[y, x, 2] >= 0.5:
+                    length = label[y, x, 0]
+                    angle = label[y, x, 1]
+                    temp = [(int(x / GROUND_TRUTH_GRID[1] * img_width), int(y / GROUND_TRUTH_GRID[0] * img_height)),
+                            (int((x / GROUND_TRUTH_GRID[1] + np.cos(angle) * length) * img_width), int((y / GROUND_TRUTH_GRID[0] + np.sin(angle) * length) * img_height))]
+                    lanes.append(temp)
         return lanes
 
     def draw_annotation(self, idx, label=None, pred=None, img=None):
@@ -308,14 +266,14 @@ class LaneDataset(Dataset):
         if img is None:
             # print(self.annotations[idx]['path'])
             img, label, _ = self.__getitem__(idx)
-            label = self.label_to_lanes(label)
+            label = self.label_to_lanes(label, img)
             img = img.permute(1, 2, 0).numpy()
             if self.normalize:
                 img = img * np.array(IMAGENET_STD) + np.array(IMAGENET_MEAN)
             img = (img * 255).astype(np.uint8)
         else:
             _, label, _ = self.__getitem__(idx)
-            label = self.label_to_lanes(label)
+            label = self.label_to_lanes(label, img)
         img = cv2.resize(img, (self.img_w, self.img_h))
 
         img_h, _, _ = img.shape
@@ -327,11 +285,7 @@ class LaneDataset(Dataset):
             img = img_pad
         data = [(None, None, label)]
         if pred is not None:
-            # print(len(pred), 'preds')
             fp, fn, matches, accs = self.dataset.get_metrics(pred, idx)
-            # print('fp: {} | fn: {}'.format(fp, fn))
-            # print(len(matches), 'matches')
-            # print(matches, accs)
             assert len(matches) == len(pred)
             data.append((matches, accs, pred))
         else:
@@ -344,16 +298,9 @@ class LaneDataset(Dataset):
                     color = PRED_HIT_COLOR
                 else:
                     color = PRED_MISS_COLOR
-                points = l.points
-                points[:, 0] *= img.shape[1]
-                points[:, 1] *= img.shape[0]
-                points = points.round().astype(int)
-                points += pad
-                xs, ys = points[:, 0], points[:, 1]
-                for curr_p, next_p in zip(points[:-1], points[1:]):
-                    img = cv2.line(img,
-                                   tuple(curr_p),
-                                   tuple(next_p),
+                start_point = l[0]
+                end_point = l[1]
+                img = cv2.line(img, start_point, end_point,
                                    color=color,
                                    thickness=3 if matches is None else 3)
                 # if 'start_x' in l.metadata:

@@ -33,35 +33,36 @@ class BasicLaneDetector(nn.Module):
         :return: Outputs for the input frames
         """
 
-        resnet18_backbone = culane.backbone.ResNet18Backbone()
+        batch_of_segments = backbone.forward(x)
+        print(batch_of_segments.shape)
 
-        batch_of_segments = resnet18_backbone.forward(x)
-
-        batch_of_segments = torch.randn(32, 512, 8, 8)  #just for testing puposes
+        batch_of_segments = torch.randn(32, 512, 8, 8)  #just for testing puposes as the positional encoder could only take input with dimensions even numbers
 
         positionally_encoded_segments = pe.forward(batch_of_segments)
 
-        basic_transformer = BasicTransformer(d_model=64)
 
         reshaped_segments = positionally_encoded_segments.view(32, 512, -1)
         reshaped_segments = reshaped_segments.permute(1, 0, 2)
-        print(reshaped_segments.shape)
-        target = torch.randn(512, 32, 64)
+        #the tensor is now of shape 512x32x64. From the documentation about the dimensions of src ->
+        # src: (S,E) for unbatched input, (S,N,E) if batch_first=False or (N, S, E) if batch_first=True.
+        #S - sequence length; N - batch size, E - size of each element of the sequence
 
-        decoder_output = basic_transformer.forward(reshaped_segments, target)
+        print(reshaped_segments.shape)
+        target = torch.randn(512, 32, 64)   #dummy target sequence
+
+        decoder_output = self.transformer.forward(reshaped_segments, target)
 
         return decoder_output
 
 
 if __name__ == "__main__":
     # backbone = Backbone("resnet50")
-    backbone = backbone.ResNet18Backbone
+    backbone = backbone.ResNet18Backbone()
     pe = PositionalEncoding((8,8), 0.2, 512) # number of segments when using ResNet18 is 512 per image and dimensions are actually 7x7 (why is the tuple like this (8,)?
-    # TODO d_model should be tuple
-    transformer = BasicTransformer(8*8)
+    transformer = BasicTransformer(d_model=64)
     lane_detector = BasicLaneDetector(backbone, pe, transformer)
-    total = 0
     print(lane_detector.forward(torch.randn(32, 3, 224, 224)).shape)
+
     # for param in lane_detector.parameters():
     #     total += np.prod(param.data.shape)
     # print(f"Total parameters registered: {total}")

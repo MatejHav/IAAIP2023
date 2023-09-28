@@ -21,9 +21,12 @@ class PositionalEncoding(nn.Module):
         position = torch.arange(max_len).unsqueeze(1)
         total_dim = np.prod(dim)
         div_term = torch.exp(torch.arange(0, total_dim, 2) * (-math.log(10000.0) / total_dim))
+        odd_div_term = div_term
+        if total_dim % 2 == 1:
+            odd_div_term = torch.exp(torch.arange(0, total_dim - 1, 2) * (-math.log(10000.0) / total_dim))
         pe = torch.zeros(max_len, 1, total_dim)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * odd_div_term)
         pe = torch.reshape(pe, (max_len, *dim))
         self.register_buffer('pe', pe)
 
@@ -42,11 +45,16 @@ class PositionalEncoding(nn.Module):
 
 
 if __name__ == "__main__":
+    # test = torch.Tensor([
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+    # ])
     test = torch.Tensor([
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)]],
+        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
+         [[1 for _ in range(7)] for _ in range(7)]]
     ])
-    positional_encoder = PositionalEncoding((10,), 0.1, 50)
+    positional_encoder = PositionalEncoding((7, 7), 0.1, 512)
     print(positional_encoder(test))

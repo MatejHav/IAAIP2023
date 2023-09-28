@@ -114,11 +114,11 @@ class LaneDataset(Dataset):
         self.normalize = normalize
         self.img_h, self.img_w = img_size
         self.strip_size = self.img_h / self.n_strips
-        self.logger = logging.getLogger(__name__)
 
         # y at each x offset
         self.offsets_ys = np.arange(self.img_h, -1, -self.strip_size)
-        self.transform_annotations()
+        if "load_formatted" in kwargs and not kwargs["load_formatted"]:
+            self.transform_annotations()
 
         if augmentations is not None:
             # add augmentations
@@ -130,7 +130,6 @@ class LaneDataset(Dataset):
         transformations = iaa.Sequential([Resize({'height': self.img_h, 'width': self.img_w})])
         self.to_tensor = ToTensor()
         self.transform = iaa.Sequential([iaa.Sometimes(then_list=augmentations, p=aug_chance), transformations])
-        self.max_lanes = self.dataset.max_lanes
 
     @property
     def annotations(self):
@@ -141,9 +140,7 @@ class LaneDataset(Dataset):
         """
         Transform dataset annotations to the model's target format.
         """
-        self.logger.info("Transforming annotations to the model's target format...")
         self.dataset.annotations = np.array(list(map(self.transform_annotation, self.dataset.annotations)))
-        self.logger.info('Done.')
 
 
     def filter_lane(self, lane):
@@ -224,7 +221,7 @@ class LaneDataset(Dataset):
         new_anno = {'path': anno['path'], 'label': lanes, 'old_anno': anno}
         return new_anno
 
-    def label_to_lanes(self, label, img):
+    def label_to_lanes(self, label):
         """
         Convert labels to lane objects.
 
@@ -234,8 +231,8 @@ class LaneDataset(Dataset):
         Returns:
             list: List of lane objects.
         """
-        img_height = img.shape[1]
-        img_width = img.shape[2]
+        img_height = self.img_h
+        img_width = self.img_w
         lanes = []
         for y in range(GROUND_TRUTH_GRID[0]):
             for x in range(GROUND_TRUTH_GRID[1]):
@@ -266,14 +263,14 @@ class LaneDataset(Dataset):
         if img is None:
             # print(self.annotations[idx]['path'])
             img, label, _ = self.__getitem__(idx)
-            label = self.label_to_lanes(label, img)
+            label = self.label_to_lanes(label)
             img = img.permute(1, 2, 0).numpy()
             if self.normalize:
                 img = img * np.array(IMAGENET_STD) + np.array(IMAGENET_MEAN)
             img = (img * 255).astype(np.uint8)
         else:
             _, label, _ = self.__getitem__(idx)
-            label = self.label_to_lanes(label, img)
+            label = self.label_to_lanes(label)
         img = cv2.resize(img, (self.img_w, self.img_h))
 
         img_h, _, _ = img.shape
@@ -303,67 +300,21 @@ class LaneDataset(Dataset):
                 img = cv2.line(img, start_point, end_point,
                                    color=color,
                                    thickness=3 if matches is None else 3)
-                # if 'start_x' in l.metadata:
-                #     start_x = l.metadata['start_x'] * img.shape[1]
-                #     start_y = l.metadata['start_y'] * img.shape[0]
-                #     cv2.circle(img, (int(start_x + pad), int(img_h - 1 - start_y + pad)),
-                #                radius=5,
-                #                color=(0, 0, 255),
-                #                thickness=-1)
-                # if len(xs) == 0:
-                #     print("Empty pred")
-                # if len(xs) > 0 and accs is not None:
-                #     cv2.putText(img,
-                #                 '{:.0f} ({})'.format(accs[i] * 100, i),
-                #                 (int(xs[len(xs) // 2] + pad), int(ys[len(xs) // 2] + pad)),
-                #                 fontFace=cv2.FONT_HERSHEY_COMPLEX,
-                #                 fontScale=0.7,
-                #                 color=color)
-                #     cv2.putText(img,
-                #                 '{:.0f}'.format(l.metadata['conf'] * 100),
-                #                 (int(xs[len(xs) // 2] + pad), int(ys[len(xs) // 2] + pad - 50)),
-                #                 fontFace=cv2.FONT_HERSHEY_COMPLEX,
-                #                 fontScale=0.7,
-                #                 color=(255, 0, 255))
         return img, fp, fn
-
-    def lane_to_linestrings(self, lanes):
-        lines = []
-        for lane in lanes:
-            lines.append(LineString(lane))
-
-        return lines
-
-    def linestrings_to_lanes(self, lines):
-        lanes = []
-        for line in lines:
-            lanes.append(line.coords)
-
-        return lanes
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
-        img_org = cv2.imread(item['path'])  
-        cv2.waitKey(0)
-        line_strings_org = self.lane_to_linestrings(item['old_anno']['lanes'])
-        line_strings_org = LineStringsOnImage(line_strings_org, shape=img_org.shape)
-        for i in range(30):
-            img, line_strings = self.transform(image=img_org.copy(), line_strings=line_strings_org)
-            line_strings.clip_out_of_image_()
-            new_anno = {'path': item['path'], 'lanes': self.linestrings_to_lanes(line_strings)}
-            try:
-                label = self.transform_annotation(new_anno, img_wh=(self.img_w, self.img_h))['label']
-                break
-            except:
-                if (i + 1) == 30:
-                    self.logger.critical('Transform annotation failed 30 times :(')
-                    exit()
+        img = cv2.imread(item['path'])
 
-        img = img / 255.
+        # Resize image
+        img = cv2.resize(img, (self.img_h, self.img_w))
+        # Standardize image
+        img = img / 255
+        # Normalize image
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
-        return (img, label, idx)
+        return (img, item['lanes'], idx)
 
     def __len__(self):
         return len(self.dataset)

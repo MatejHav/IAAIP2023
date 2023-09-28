@@ -1,5 +1,5 @@
 import os
-import json
+import pickle
 import logging
 import random
 
@@ -30,10 +30,11 @@ SPLIT_FILES = {
 
 
 class CULane(LaneDatasetLoader):
-    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True):
+    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, load_formatted=True):
         self.split = split
         self.root = root
         self.official_metric = official_metric
+        self.load_formatted = load_formatted
         self.logger = logging.getLogger(__name__)
 
         if root is None:
@@ -43,7 +44,6 @@ class CULane(LaneDatasetLoader):
 
         self.list = os.path.join(root, SPLIT_FILES[split])
 
-        print('getting files from {}'.format(self.list))
 
         self.img_w, self.img_h = 1640, 590
         self.annotations = []
@@ -71,6 +71,8 @@ class CULane(LaneDatasetLoader):
         return fp, fn, matches, ious
 
     def load_annotation(self, img_path):
+        if self.load_formatted:
+            return {'path': img_path, 'lanes': torch.load(img_path[:-4] + '_lines_formatted.txt')}
         anno_path = img_path[:-3] + 'lines.txt'  # remove sufix jpg and add lines.txt
 
         with open(anno_path, 'r') as anno_file:
@@ -81,7 +83,6 @@ class CULane(LaneDatasetLoader):
         lanes = [list(set(lane)) for lane in lanes]  # remove duplicated points
         lanes = [lane for lane in lanes if len(lane) >= 2]  # remove lanes with less than 2 points
 
-        print('current lines are {}'.format(lanes))
 
         lanes = [sorted(lane, key=lambda x: x[1]) for lane in lanes]  # sort by y
 
@@ -91,33 +92,28 @@ class CULane(LaneDatasetLoader):
         self.annotations = []
         self.max_lanes = 0
         os.makedirs('cache', exist_ok=True)
-        cache_path = 'cache/culane_{}.json'.format(self.split)
+        cache_path = 'cache/culane_{}'.format(self.split)
 
         if os.path.exists(cache_path):
-            print('Loading CULane annotations (cached)...')
-            with open(cache_path, 'r') as cache_file:
-                data = json.load(cache_file)
+            print('LOADING CACHED DATA...')
+            with open(cache_path, 'rb') as cache_file:
+                data = pickle.load(cache_file)
                 self.annotations = data['annotations']
-                self.max_lanes = data['max_lanes']
         else:
-            print('Loading CULane annotations and caching...')
+            print('LOADING VIDEOS INTO CACHE...')
             with open(self.list, 'r') as list_file:
                 files = [line.rstrip()[1 if line[0] == '/' else 0::]
                          for line in list_file]  # remove `/` from beginning if needed
 
-            for file in tqdm(files):
-                print('loading file {}'.format(file))
+            bar = tqdm(files)
+            for file in bar:
+                bar.set_description(f'Loading video {file.split("/")[-3]}/{file.split("/")[-2]}')
                 img_path = os.path.join(self.root, file)
                 anno = self.load_annotation(img_path)
                 anno['org_path'] = file
-
-                if len(anno['lanes']) > 0:
-                    self.max_lanes = max(self.max_lanes, len(anno['lanes']))
                 self.annotations.append(anno)
-            with open(cache_path, 'w') as cache_file:
-                json.dump({'annotations': self.annotations, 'max_lanes': self.max_lanes}, cache_file)
-
-        print(len(self.annotations), 'annotations loaded, with a maximum of', self.max_lanes, ' lanes in an image.')
+            with open(cache_path, 'wb') as cache_file:
+                pickle.dump({'annotations': self.annotations}, cache_file)
 
     def get_prediction_string(self, pred):
         ys = np.arange(self.img_h) / self.img_h

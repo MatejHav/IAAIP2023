@@ -5,7 +5,7 @@ import math
 import typing
 
 
-class PositionalEncoding(nn.Module):
+class PositionalEncoder(nn.Module):
 
     def __init__(self, dim: tuple, dropout: float = 0.1, max_len: int = 5000):
         """
@@ -56,5 +56,5 @@ if __name__ == "__main__":
         [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
          [[1 for _ in range(7)] for _ in range(7)]]
     ])
-    positional_encoder = PositionalEncoding((7, 7), 0.1, 512)
+    positional_encoder = PositionalEncoder((7, 7), 0.1, 512)
     print(positional_encoder(test))

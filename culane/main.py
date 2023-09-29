@@ -18,7 +18,7 @@ def get_train_dataloader():
     root = './data/'
     train_dataset = LaneDataset(split=split, root=root, load_formatted=True)
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                               batch_size=4,
+                                               batch_size=30,
                                                shuffle=False,  # !
                                                num_workers=1,
                                                worker_init_fn=_worker_init_fn_)
@@ -38,31 +38,10 @@ if __name__ == '__main__':
         # the last dimension, i.e., (height, width, channels).
         # .permute(1, 2, 0) swaps the dimensions so that the channels dimension becomes the last one.
         # This is done to match the channel order expected by most image display functions.
-        img0 = (images[0].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        label_img0, _, _ = train_loader.dataset.draw_annotation(i, img0)
-        cv2.imshow('img', label_img0)
+        batch_size = images.shape[0]
+        for j, _ in enumerate(images):
+            # Need to multiply the batch_size with the index to get the actual correct frame
+            label_img, _, _ = train_loader.dataset.draw_annotation(batch_size * i + j)
+            cv2.imshow('img', label_img)
+            cv2.waitKey(500)
         cv2.waitKey(0)
-
-        # img1 = (images[1].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        # label_img1, _, _ = train_loader.dataset.draw_annotation(i)
-        # cv2.imshow('img', label_img1)
-        # cv2.waitKey(0)
-        #
-        # img2 = (images[2].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        # label_img2, _, _ = train_loader.dataset.draw_annotation(i)
-        # cv2.imshow('img', label_img2)
-        # cv2.waitKey(0)
-        #
-        # img3 = (images[3].cpu().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        # label_img3, _, _ = train_loader.dataset.draw_annotation(i)
-        # cv2.imshow('img', label_img3)
-        # cv2.waitKey(0)
-
-        # for batch_idx in range(lanes.shape[0]):
-        #     lanes_np = lanes.cpu().numpy()
-        #     lane_coords_for_batch = train_loader.dataset.label_to_lanes(lanes_np[batch_idx])
-        #     print(lane_coords_for_batch)
-
-        # annotations = train_loader.dataset.annotations[i]['old_anno']
-        # print(annotations)
-        # exit()

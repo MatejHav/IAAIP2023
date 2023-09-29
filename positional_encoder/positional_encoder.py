@@ -5,7 +5,7 @@ import math
 import typing
 
 
-class PositionalEncoding(nn.Module):
+class PositionalEncoder(nn.Module):
 
     def __init__(self, dim: tuple, dropout: float = 0.1, max_len: int = 5000):
         """
@@ -19,12 +19,14 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
         position = torch.arange(max_len).unsqueeze(1)
-        total_dim = int(np.prod(dim))
+        total_dim = np.prod(dim)
         div_term = torch.exp(torch.arange(0, total_dim, 2) * (-math.log(10000.0) / total_dim))
+        odd_div_term = div_term
+        if total_dim % 2 == 1:
+            odd_div_term = torch.exp(torch.arange(0, total_dim - 1, 2) * (-math.log(10000.0) / total_dim))
         pe = torch.zeros(max_len, 1, total_dim)
-        # TODO Make work if total_dim would be odd (there is 1 extra dimension then for cos)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * odd_div_term)
         pe = torch.reshape(pe, (max_len, *dim))
         self.register_buffer('pe', pe)
 
@@ -43,14 +45,16 @@ class PositionalEncoding(nn.Module):
 
 
 if __name__ == "__main__":
+    # test = torch.Tensor([
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+    # ])
     test = torch.Tensor([
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-        [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
+        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)]],
+        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
+         [[1 for _ in range(7)] for _ in range(7)]]
     ])
-    # positional_encoder = PositionalEncoding((10,), 0.1, 50)
-    pe = PositionalEncoding((8,8), 0.2, 512)
-    test_tensor = torch.randn(32, 512, 8, 8)
-    print(test_tensor.shape)
-    print(pe.forward(test_tensor).shape)
+    positional_encoder = PositionalEncoder((7, 7), 0.1, 512)
+    print(positional_encoder(test))

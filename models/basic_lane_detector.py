@@ -1,17 +1,14 @@
 from torch import nn
 import torch
-import numpy as np
 
-import culane.backbone
-from backbone.backbone import Backbone
-from positional_encoder.positional_encoder import PositionalEncoding
+from positional_encoder.positional_encoder import PositionalEncoder
 from transformer.basic_transformer import BasicTransformer
 from culane import backbone
 
 
 class BasicLaneDetector(nn.Module):
 
-    def __init__(self, backbone: nn.Module, pe: PositionalEncoding, transformer: BasicTransformer):
+    def __init__(self, backbone: nn.Module, pe: PositionalEncoder, transformer: BasicTransformer):
         """
         Detects lanes in input images using a basic transformer architecture.
 
@@ -58,7 +55,7 @@ class BasicLaneDetector(nn.Module):
 if __name__ == "__main__":
     # backbone = Backbone("resnet50")
     backbone = backbone.ResNet18Backbone()
-    pe = PositionalEncoding((8,8), 0.2, 512) # number of segments when using ResNet18 is 512 per image and dimensions are actually 7x7 (why is the tuple like this (8,)?
+    pe = PositionalEncoder((8,8), 0.2, 512) # number of segments when using ResNet18 is 512 per image and dimensions are actually 7x7 (why is the tuple like this (8,)?
     transformer = BasicTransformer(d_model=64)
     lane_detector = BasicLaneDetector(backbone, pe, transformer)
     print(lane_detector.forward(torch.randn(32, 3, 224, 224)).shape)

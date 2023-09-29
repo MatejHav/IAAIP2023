@@ -120,6 +120,11 @@ class LaneDataset(Dataset):
         if "load_formatted" in kwargs and not kwargs["load_formatted"]:
             self.transform_annotations()
 
+        if "load_formatted" in kwargs:
+            self.load_formatted = kwargs['load_formatted']
+        else:
+            self.load_formatted = True
+
         if augmentations is not None:
             # add augmentations
             augmentations = [getattr(iaa, aug['name'])(**aug['parameters'])
@@ -314,6 +319,8 @@ class LaneDataset(Dataset):
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
+        if not self.load_formatted:
+            return (img, self.transform_annotation(item), idx)
         return (img, item['lanes'], idx)
 
     def __len__(self):

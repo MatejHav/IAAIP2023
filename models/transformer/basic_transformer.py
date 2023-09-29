@@ -10,7 +10,7 @@ from models.transformer.transformer_encoder import TransformerEncoderWrapper
 class BasicTransformer(Transformer):
     def __init__(self, d_model: int = 512, nhead: int = 8, num_encoder_layers: int = 6,
                  num_decoder_layers: int = 6, dim_feedforward: int = 2048, dropout: float = 0.1):
-        super().__init__(d_model)
+        super().__init__(d_model, nhead)
         encoder_wrapper = TransformerEncoderWrapper(num_encoder_layers, d_model, nhead, dim_feedforward, dropout)
         decoder_wrapper = TransformerDecoderWrapper(num_decoder_layers, d_model, nhead, dim_feedforward, dropout)
         self.encoder = encoder_wrapper.transformer_encoder
@@ -26,6 +26,7 @@ class BasicTransformer(Transformer):
             raise RuntimeError("the batch number of src and tgt must be equal")
 
         if src.size(-1) != self.d_model or tgt.size(-1) != self.d_model:
+            print(src.size(-1), tgt.size(-1), self.d_model)
             raise RuntimeError("the feature number of src and tgt must be equal to d_model")
 
         memory = self.encoder(src, mask=src_mask, src_key_padding_mask=src_key_padding_mask)

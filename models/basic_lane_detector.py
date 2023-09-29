@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 
-from positional_encoder.positional_encoder import PositionalEncoder
+from models.positional_encoder.positional_encoder import PositionalEncoder
 from transformer.basic_transformer import BasicTransformer
 from culane import backbone
 
@@ -31,9 +31,10 @@ class BasicLaneDetector(nn.Module):
         """
 
         batch_of_segments = backbone.forward(x)
+        print("yo")
         print(batch_of_segments.shape)
 
-        batch_of_segments = torch.randn(32, 512, 8, 8)  #just for testing puposes as the positional encoder could only take input with dimensions even numbers
+        batch_of_segments = torch.randn(32, 512, 7, 7)  #just for testing puposes as the positional encoder could only take input with dimensions even numbers
 
         positionally_encoded_segments = pe.forward(batch_of_segments)
 
@@ -45,7 +46,7 @@ class BasicLaneDetector(nn.Module):
         #S - sequence length; N - batch size, E - size of each element of the sequence
 
         print(reshaped_segments.shape)
-        target = torch.randn(512, 32, 64)   #dummy target sequence
+        target = torch.randn(512, 32, 49)   #dummy target sequence
 
         decoder_output = self.transformer.forward(reshaped_segments, target)
 
@@ -54,11 +55,8 @@ class BasicLaneDetector(nn.Module):
 
 if __name__ == "__main__":
     # backbone = Backbone("resnet50")
-    backbone = backbone.ResNet18Backbone()
-    pe = PositionalEncoder((8,8), 0.2, 512) # number of segments when using ResNet18 is 512 per image and dimensions are actually 7x7 (why is the tuple like this (8,)?
-    transformer = BasicTransformer(d_model=64)
-    lane_detector = BasicLaneDetector(backbone, pe, transformer)
-    print(lane_detector.forward(torch.randn(32, 3, 224, 224)).shape)
+
+    #ALL THIS PART HAS GONE INTO THE TRAINING LOOP SECTION
 
     # for param in lane_detector.parameters():
     #     total += np.prod(param.data.shape)

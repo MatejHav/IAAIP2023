@@ -1,5 +1,6 @@
 import torch
-from lane_dataset import LaneDataset
+from culane.lane_dataset import LaneDataset
+from torch.utils.data import DataLoader
 import random
 import numpy as np
 from tqdm import tqdm
@@ -13,23 +14,21 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_train_dataloader():
-    split = 'train'
-    root = './data/'
-    train_dataset = LaneDataset(split=split, root=root, load_formatted=True)
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                               batch_size=30,
-                                               shuffle=False,  # !
-                                               num_workers=1,
-                                               worker_init_fn=_worker_init_fn_)
-
-    return train_loader
+def get_dataloader(split: str = 'train', batch_size: int = 30):
+    root = './culane/data/'
+    dataset = LaneDataset(split=split, root=root, load_formatted=True)
+    loader = DataLoader(dataset=dataset,
+                              batch_size=batch_size,
+                              shuffle=False,  # !
+                              num_workers=1,
+                              worker_init_fn=_worker_init_fn_)
+    return loader
 
 
 idx = 0
 
 if __name__ == '__main__':
-    train_loader = get_train_dataloader()
+    train_loader = get_dataloader('train')
     num_epochs = 10
     pbar = tqdm(train_loader)
     for i, (images, lanes, _) in enumerate(pbar):

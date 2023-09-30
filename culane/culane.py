@@ -1,98 +1,153 @@
 import os
-import cv2
+import pickle
+import logging
+import random
+
 import numpy as np
+from tqdm import tqdm
+from torch.utils.data import Dataset, DataLoader
 import torch
-from torch.utils.data import Dataset
 
-class CULaneDataset(Dataset):
-    def __init__(self, root, transform=None):
+import utils.culane_metric as culane_metric
+
+from lane_dataset_loader import LaneDatasetLoader
+
+SPLIT_FILES = {
+    'train': "list/train.txt",
+    'val': 'list/val.txt',
+    'test': "list/test.txt",
+    'normal': 'list/test_split/test0_normal.txt',
+    'crowd': 'list/test_split/test1_crowd.txt',
+    'hlight': 'list/test_split/test2_hlight.txt',
+    'shadow': 'list/test_split/test3_shadow.txt',
+    'noline': 'list/test_split/test4_noline.txt',
+    'arrow': 'list/test_split/test5_arrow.txt',
+    'curve': 'list/test_split/test6_curve.txt',
+    'cross': 'list/test_split/test7_cross.txt',
+    'night': 'list/test_split/test8_night.txt',
+    'debug': 'list/debug.txt'
+}
+
+
+class CULane(LaneDatasetLoader):
+    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, load_formatted=True):
+        self.split = split
         self.root = root
-        self.transform = transform
-        self.img_paths, self.anno_paths = self._load_data_paths()
-        self.normalize = True  # This can be made an argument or flag
-        self.img_w, self.img_h = 1640, 590  # Default image dimensions for CULane
-        
-    def _load_data_paths(self):
-        # Assumes the structure is:
-        # - root
-        #   - driver_23_30frame
-        #     - xxxxxxxx.jpg
-        #     - xxxxxxxx.lines.txt
-        image_paths = []
-        anno_paths = []
-        
-        for subdir, _, files in os.walk(self.root):
-            for file in files:
-                if file.endswith('.jpg'):
-                    image_paths.append(os.path.join(subdir, file))
-                    anno_path = os.path.join(subdir, file.replace('.jpg', '.lines.txt'))
-                    anno_paths.append(anno_path)
-                    
-        return image_paths, anno_paths
+        self.official_metric = official_metric
+        self.load_formatted = load_formatted
+        self.logger = logging.getLogger(__name__)
 
-    def _load_annotation(self, anno_path):
-        with open(anno_path, 'r') as lanes_obj:
-            strlanes = lanes_obj.readlines()
-            
+        if root is None:
+            raise Exception('Please specify the root directory')
+        if split not in SPLIT_FILES:
+            raise Exception('Split `{}` does not exist.'.format(split))
+
+        self.list = os.path.join(root, SPLIT_FILES[split])
+
+
+        self.img_w, self.img_h = 1640, 590
+        self.annotations = []
+        self.load_annotations()
+        self.max_lanes = 4 if max_lanes is None else max_lanes
+
+    def get_img_heigth(self, _):
+        return self.img_h
+
+    def get_img_width(self, _):
+        return self.img_w
+
+    def get_metrics(self, raw_lanes, idx):
         lanes = []
-        for strlane in strlanes:
-            strpts = strlane.split(' ')[:-1]
-            x_gts = [float(x_) for x_ in strpts[::2]]
-            y_gts = [float(y_) for y_ in strpts[1::2]]
-            lanes.append([(x, y) for (x, y) in zip(x_gts, y_gts) if x >= 0])
-        
-        return lanes
+        pred_str = self.get_prediction_string(raw_lanes)
+        for lane in pred_str.split('\n'):
+            if lane == '':
+                continue
+            lane = list(map(float, lane.split()))
+            lane = [(lane[i], lane[i + 1]) for i in range(0, len(lane), 2) if lane[i] >= 0 and lane[i + 1] >= 0]
+            lanes.append(lane)
+        anno = culane_metric.load_culane_img_data(self.annotations[idx]['path'].replace('.jpg', '.lines.txt'))
+        _, fp, fn, ious, matches = culane_metric.culane_metric(lanes, anno)
 
-    def __len__(self):
-        return len(self.img_paths)
-    
-    def lane_to_img(self, lanes):
-        # Convert lanes to image
-        img = np.zeros((self.img_h, self.img_w))
-        # use polylines
-        for lane in lanes:
-            pts = np.array(lane, np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            img = cv2.polylines(img, [pts], False, 255)
+        return fp, fn, matches, ious
 
-        return img
+    def load_annotation(self, img_path):
+        if self.load_formatted:
+            return {'path': img_path, 'lanes': torch.load(img_path[:-4] + '_lines_formatted.txt')}
+        anno_path = img_path[:-3] + 'lines.txt'  # remove sufix jpg and add lines.txt
+
+        with open(anno_path, 'r') as anno_file:
+            data = [list(map(float, line.split())) for line in anno_file.readlines()]
+
+        lanes = [[(lane[i], lane[i + 1]) for i in range(0, len(lane), 2) if lane[i] >= 0 and lane[i + 1] >= 0]
+                 for lane in data]
+        lanes = [list(set(lane)) for lane in lanes]  # remove duplicated points
+        lanes = [lane for lane in lanes if len(lane) >= 2]  # remove lanes with less than 2 points
+
+
+        lanes = [sorted(lane, key=lambda x: x[1]) for lane in lanes]  # sort by y
+
+        return {'path': img_path, 'lanes': lanes}
+
+    def load_annotations(self):
+        self.annotations = []
+        self.max_lanes = 0
+        os.makedirs('cache', exist_ok=True)
+        cache_path = 'cache/culane_{}'.format(self.split)
+
+        if os.path.exists(cache_path):
+            print('LOADING CACHED DATA...')
+            with open(cache_path, 'rb') as cache_file:
+                data = pickle.load(cache_file)
+                self.annotations = data['annotations']
+        else:
+            print('LOADING VIDEOS INTO CACHE...')
+            with open(self.list, 'r') as list_file:
+                files = [line.rstrip()[1 if line[0] == '/' else 0::]
+                         for line in list_file]  # remove `/` from beginning if needed
+
+            bar = tqdm(files)
+            for file in bar:
+                bar.set_description(f'Loading video {file.split("/")[-3]}/{file.split("/")[-2]}')
+                img_path = os.path.join(self.root, file)
+                anno = self.load_annotation(img_path)
+                anno['org_path'] = file
+                self.annotations.append(anno)
+            with open(cache_path, 'wb') as cache_file:
+                pickle.dump({'annotations': self.annotations}, cache_file)
+
+    def get_prediction_string(self, pred):
+        ys = np.arange(self.img_h) / self.img_h
+        out = []
+        for lane in pred:
+            xs = lane(ys)
+            valid_mask = (xs >= 0) & (xs < 1)
+            xs = xs * self.img_w
+            lane_xs = xs[valid_mask]
+            lane_ys = ys[valid_mask] * self.img_h
+            lane_xs, lane_ys = lane_xs[::-1], lane_ys[::-1]
+            lane_str = ' '.join(['{:.5f} {:.5f}'.format(x, y) for x, y in zip(lane_xs, lane_ys)])
+            if lane_str != '':
+                out.append(lane_str)
+
+        return '\n'.join(out)
+
+    def eval_predictions(self, predictions, output_basedir):
+        print('Generating prediction output...')
+        for idx, pred in enumerate(tqdm(predictions)):
+            output_dir = os.path.join(output_basedir, os.path.dirname(self.annotations[idx]['old_anno']['org_path']))
+            output_filename = os.path.basename(self.annotations[idx]['old_anno']['org_path'])[:-3] + 'lines.txt'
+            os.makedirs(output_dir, exist_ok=True)
+            output = self.get_prediction_string(pred)
+            with open(os.path.join(output_dir, output_filename), 'w') as out_file:
+                out_file.write(output)
+        return culane_metric.eval_predictions(output_basedir, self.root, self.list, official=self.official_metric)
+
+    def transform_annotations(self, transform):
+        self.annotations = list(map(transform, self.annotations))
 
     def __getitem__(self, idx):
-        img_path = self.img_paths[idx]
-        anno_path = self.anno_paths[idx]
-        
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
-        lanes = self._load_annotation(anno_path)
-        
-        if self.transform:
-            # This part assumes you have some transformation function
-            img, lanes = self.transform(img, lanes)
-            
-        if self.normalize:
-            img = (img - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])  # ImageNet mean and std
-        img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float()
-        
-        return img_tensor, lanes
+        return self.annotations[idx]
 
-# Usage
-# dataset = CULaneDataset("/Users/charlesdowns/Documents/GitHub/IAAIP2023/culane/data/driver_23_30frame") # NOTE: = subset of image dataset!
-# img_tensor, lanes = dataset[0]
-# print(img_tensor.shape, lanes)
-
-# # display image and lanes
-# import matplotlib.pyplot as plt
-# # convert the img_tensor to proper RGB image
-# img_tensor = img_tensor.numpy().transpose(1, 2, 0)
-# img_tensor = img_tensor * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-# img_tensor = img_tensor * 255
-# img_tensor = img_tensor.astype(np.uint8)
-# plt.imshow(img_tensor)
-# for lane in lanes:
-#     plt.plot([x for (x, y) in lane], [y for (x, y) in lane])
-# plt.show()
-
-# lanes_image = dataset.lane_to_img(lanes)
-# plt.imshow(lanes_image)
-# plt.show()
+    def __len__(self):
+        return len(self.annotations)
+    

@@ -1,4 +1,5 @@
 .idea
+./culane/cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -162,3 +163,5 @@ cython_debug/
 
 culane/data
 tusimple/data
+
+culane/cache/

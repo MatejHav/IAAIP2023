@@ -19,10 +19,12 @@ def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     :return: Total loss
     """
     selection_empty = targets[:, :, :, 2] <= 0.5
-    selection_lane = targets[:, :, :, 2] > 0.5
     should_be_empty = (predictions[selection_empty] - targets[selection_empty]) ** 2 / torch.sum(selection_empty)
+    temp = 0.5 * should_be_empty.sum()
+    del selection_empty, should_be_empty
+    selection_lane = targets[:, :, :, 2] > 0.5
     should_be_lane = (predictions[selection_lane] - targets[selection_lane]) ** 2 / torch.sum(selection_lane)
-    return 0.5 * should_be_lane.sum() + 0.5 * should_be_empty.sum()
+    return temp + 0.5 * should_be_lane.sum()
 
 
 def training_loop(num_epochs, dataloaders, models, device):
@@ -41,14 +43,26 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch}")
             total_loss_train = 0
             for batch, targets, _ in progress_bar_train:
+                # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
+                # Make predictions
                 predictions = model(batch)
+                del batch
+                torch.cuda.empty_cache()
+                # Compute loss
                 loss = compute_loss(predictions, targets)
+                del targets, predictions
+                torch.cuda.empty_cache()
                 loss.backward()
+                # Save loss for printouts
+                total_loss_train += torch.mean(loss).item()
+                del loss
+                torch.cuda.empty_cache()
+                # Learn
                 optimizer.step()
                 optimizer.zero_grad()
-                total_loss_train += torch.mean(loss)
+
             total_loss_train /= len(progress_bar_train)
 
             # Validate the model
@@ -62,6 +76,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 predictions = model(batch)
                 loss = compute_loss(predictions, targets)
                 total_loss_val += torch.mean(loss)
+                del batch, targets, loss
             total_loss_val /= len(progress_bar_val)
             print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {total_loss_train} | TOTAL VALIDATION LOSS: {total_loss_val}')
 
@@ -76,6 +91,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             predictions = model(batch)
             loss = compute_loss(predictions, targets)
             total_loss_test += torch.mean(loss)
+            del batch, targets, loss
         total_loss_test /= len(progress_bar_test)
         print(f"TOTAL TEST LOSS: {total_loss_test}")
         path = os.path.join(models[model_name]['path'], f"model_{time.time()}.model")
@@ -91,8 +107,8 @@ if __name__ == "__main__":
         print("CUDA NOT RECOGNIZED. USING CPU INSTEAD.")
 
     # Training Parameters
-    num_epochs = 20
-    batch_size = 30
+    num_epochs = 5
+    batch_size = 5
     culane_dataloader = {
         'train': get_dataloader('train', batch_size),
         'val': get_dataloader('val', batch_size),

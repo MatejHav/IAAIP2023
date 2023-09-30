@@ -6,7 +6,11 @@ from models.basic_lane_detector import BasicLaneDetector
 
 def get_basic_model(device):
     backbone = Backbone('resnet18', device)
-    pe = PositionalEncoder((7, 7), 0.2, 512, device)
-    transformer = BasicTransformer(d_model=49, nhead=7, device=device)
+    backbone.to(device)
+    pe = PositionalEncoder((25, 10), 0.2, 512, device)
+    pe.to(device)
+    transformer = BasicTransformer(d_model=250, nhead=10, device=device)
+    transformer.to(device)
     model = BasicLaneDetector(backbone, pe, transformer, device)
+    model.to(device)
     return model

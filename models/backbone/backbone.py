@@ -16,7 +16,11 @@ class Backbone(nn.Module):
         self.model.to(device)
 
         # Remove the fully connected layer (classifier) at the end
-        self.features = nn.Sequential(*list(self.model.children())[:-2])
+        self.model.features = nn.Sequential(*list(self.model.children())[:-2])
+
+        # Freeze training of the backbone
+        for param in self.model.features.parameters():
+            param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -25,4 +29,4 @@ class Backbone(nn.Module):
         :param x: Frame of the video loaded by the dataloader
         :return: Set of feature tensors
         """
-        return self.model(x)
+        return self.model.features(x)

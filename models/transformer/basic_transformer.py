@@ -16,10 +16,11 @@ class BasicTransformer(Transformer):
         super().__init__(d_model, nhead, batch_first=True)
         encoder_wrapper = TransformerEncoderWrapper(num_encoder_layers, d_model, nhead, dim_feedforward, dropout)
         decoder_wrapper = TransformerDecoderWrapper(num_decoder_layers, d_model, nhead, dim_feedforward, dropout)
+        encoder_wrapper.to(device)
+        decoder_wrapper.to(device)
         self.encoder = encoder_wrapper.transformer_encoder
         self.decoder = decoder_wrapper.transformer_decoder
-        self.encoder.to(device)
-        self.decoder.to(device)
+        self.device = device
 
     def forward(self, src: Tensor, tgt: Tensor, src_mask: Optional[Tensor] = None, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None,

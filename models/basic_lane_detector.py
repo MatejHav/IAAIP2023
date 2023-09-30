@@ -19,7 +19,9 @@ class BasicLaneDetector(nn.Module):
         self.backbone = backbone
         self.pe = pe
         self.transformer = transformer
-        self.shape_corrector = nn.Sequential(nn.Linear(512*49, 15_000, device=device), nn.Sigmoid(), nn.Linear(15_000, 64*160*3, device=device))
+        self.shape_corrector = nn.Sequential(nn.Linear(512*250, 10_000, device=device),
+                                             nn.Sigmoid(),
+                                             nn.Linear(10_000, 64*160*3, device=device))
         self.device = device
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -33,14 +35,11 @@ class BasicLaneDetector(nn.Module):
         # Turn all the frames into segments. Shape(batch_size, segment_number, segment_x, segment_y)
         batch_of_segments = self.backbone(x)
 
-        batch_of_segments = torch.randn(30, 512, 7, 7)
-        batch_of_segments = batch_of_segments.to(self.device)
-
-        positionally_encoded_segments = self.pe.forward(batch_of_segments)
+        positionally_encoded_segments = self.pe(batch_of_segments)
         # Flatten everything after 2nd dim
         positionally_encoded_segments = torch.flatten(positionally_encoded_segments, start_dim=2)
         # Wanted output
-        target = torch.randn(30, 512, 49)
+        target = torch.randn(x.shape[0], 512, batch_of_segments.shape[-2] * batch_of_segments.shape[-1], dtype=torch.float32)
         target = target.to(self.device)
 
         target = self.transformer(positionally_encoded_segments, target)

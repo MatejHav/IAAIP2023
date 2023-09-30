@@ -5,7 +5,7 @@ from torchvision.models import get_model
 
 class Backbone(nn.Module):
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, device):
         """
         The backbone segments an input frame into smaller segments, or set of feature tensors, that should represent
         the frame in latent space. The backbone uses a pretrained model defined as input.
@@ -13,6 +13,10 @@ class Backbone(nn.Module):
         """
         super().__init__()
         self.model = get_model(model_name)
+        self.model.to(device)
+
+        # Remove the fully connected layer (classifier) at the end
+        self.features = nn.Sequential(*list(self.model.children())[:-2])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

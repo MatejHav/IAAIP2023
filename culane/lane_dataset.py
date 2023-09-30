@@ -1,20 +1,11 @@
-import logging
-
 import cv2
 import numpy as np
 import imgaug.augmenters as iaa
 from imgaug.augmenters import Resize
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataset import Dataset
-from scipy.interpolate import InterpolatedUnivariateSpline
-from imgaug.augmentables.lines import LineString, LineStringsOnImage
 
-from lib.lane import Lane
-
-from culane import CULane
-# from .tusimple import TuSimple
-# from .llamas import LLAMAS
-# from .nolabel_dataset import NoLabelDataset
+from culane.culane import CULane
 
 GT_COLOR = (255, 0, 0)
 PRED_HIT_COLOR = (0, 255, 0)
@@ -183,6 +174,8 @@ class LaneDataset(Dataset):
         Returns:
             dict: Transformed annotation.
         """
+        if "old_anno" in anno:
+            return anno
         if img_wh is None:
             img_h = self.dataset.get_img_heigth(anno['path'])
             img_w = self.dataset.get_img_width(anno['path'])

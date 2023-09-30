@@ -2,13 +2,12 @@ from torch import nn
 import torch
 
 from models.positional_encoder.positional_encoder import PositionalEncoder
-from transformer.basic_transformer import BasicTransformer
-from culane import backbone
+from models.transformer.basic_transformer import BasicTransformer
 
 
 class BasicLaneDetector(nn.Module):
 
-    def __init__(self, backbone: nn.Module, pe: PositionalEncoder, transformer: BasicTransformer):
+    def __init__(self, backbone: nn.Module, pe: PositionalEncoder, transformer: BasicTransformer, device):
         """
         Detects lanes in input images using a basic transformer architecture.
 
@@ -20,44 +19,32 @@ class BasicLaneDetector(nn.Module):
         self.backbone = backbone
         self.pe = pe
         self.transformer = transformer
+        self.shape_corrector = nn.Sequential(nn.Linear(512*49, 15_000, device=device), nn.Sigmoid(), nn.Linear(15_000, 64*160*3, device=device))
+        self.device = device
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the entire model.
 
-        :param x: TODO should this be the entire video or a batch of frame from 1 video
-        or batch of frames from different videos. Lastly agreed size: (32, width, height)
+        :param x: Input batch. Size is (30, width, height)
         :return: Outputs for the input frames
         """
 
-        batch_of_segments = backbone.forward(x)
-        print("yo")
-        print(batch_of_segments.shape)
+        # Turn all the frames into segments. Shape(batch_size, segment_number, segment_x, segment_y)
+        batch_of_segments = self.backbone(x)
 
-        batch_of_segments = torch.randn(32, 512, 7, 7)  #just for testing puposes as the positional encoder could only take input with dimensions even numbers
+        batch_of_segments = torch.randn(30, 512, 7, 7)
+        batch_of_segments = batch_of_segments.to(self.device)
 
-        positionally_encoded_segments = pe.forward(batch_of_segments)
+        positionally_encoded_segments = self.pe.forward(batch_of_segments)
+        # Flatten everything after 2nd dim
+        positionally_encoded_segments = torch.flatten(positionally_encoded_segments, start_dim=2)
+        # Wanted output
+        target = torch.randn(30, 512, 49)
+        target = target.to(self.device)
 
-
-        reshaped_segments = positionally_encoded_segments.view(32, 512, -1)
-        reshaped_segments = reshaped_segments.permute(1, 0, 2)
-        #the tensor is now of shape 512x32x64. From the documentation about the dimensions of src ->
-        # src: (S,E) for unbatched input, (S,N,E) if batch_first=False or (N, S, E) if batch_first=True.
-        #S - sequence length; N - batch size, E - size of each element of the sequence
-
-        print(reshaped_segments.shape)
-        target = torch.randn(512, 32, 49)   #dummy target sequence
-
-        decoder_output = self.transformer.forward(reshaped_segments, target)
-
-        return decoder_output
-
-
-if __name__ == "__main__":
-    # backbone = Backbone("resnet50")
-
-    #ALL THIS PART HAS GONE INTO THE TRAINING LOOP SECTION
-
-    # for param in lane_detector.parameters():
-    #     total += np.prod(param.data.shape)
-    # print(f"Total parameters registered: {total}")
+        target = self.transformer(positionally_encoded_segments, target)
+        target = torch.flatten(target, start_dim=1)
+        target = self.shape_corrector(target)
+        target = torch.reshape(target, (target.size(0), 64, 160, 3))
+        return target

@@ -7,7 +7,7 @@ import typing
 
 class PositionalEncoder(nn.Module):
 
-    def __init__(self, dim: tuple, dropout: float = 0.1, max_len: int = 5000):
+    def __init__(self, dim: tuple, dropout: float = 0.1, max_len: int = 5000, device=None):
         """
         Positional Encoding model adds the position of individual segments into the data.
         This helps the transformer or any model to add position into consideration when learning.
@@ -28,6 +28,7 @@ class PositionalEncoder(nn.Module):
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * odd_div_term)
         pe = torch.reshape(pe, (max_len, *dim))
+        pe = pe.to(device)
         self.register_buffer('pe', pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -52,7 +53,8 @@ if __name__ == "__main__":
     #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
     # ])
     test = torch.Tensor([
-        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)]],
+        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
+         [[1 for _ in range(7)] for _ in range(7)]],
         [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
          [[1 for _ in range(7)] for _ in range(7)]]
     ])

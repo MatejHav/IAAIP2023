@@ -1,16 +1,14 @@
 import os
 import pickle
 import logging
-import random
 
 import numpy as np
 from tqdm import tqdm
-from torch.utils.data import Dataset, DataLoader
 import torch
 
-import utils.culane_metric as culane_metric
+import culane.utils.culane_metric as culane_metric
 
-from lane_dataset_loader import LaneDatasetLoader
+from culane.lane_dataset_loader import LaneDatasetLoader
 
 SPLIT_FILES = {
     'train': "list/train.txt",
@@ -91,16 +89,16 @@ class CULane(LaneDatasetLoader):
     def load_annotations(self):
         self.annotations = []
         self.max_lanes = 0
-        os.makedirs('cache', exist_ok=True)
-        cache_path = 'cache/culane_{}'.format(self.split)
+        os.makedirs('./culane/cache', exist_ok=True)
+        cache_path = './culane/cache/culane_{}'.format(self.split)
 
         if os.path.exists(cache_path):
-            print('LOADING CACHED DATA...')
+            print(f'LOADING {self.split.upper()} CACHED DATA')
             with open(cache_path, 'rb') as cache_file:
                 data = pickle.load(cache_file)
                 self.annotations = data['annotations']
         else:
-            print('LOADING VIDEOS INTO CACHE...')
+            print(f'LOADING {self.split.upper()} VIDEOS INTO CACHE')
             with open(self.list, 'r') as list_file:
                 files = [line.rstrip()[1 if line[0] == '/' else 0::]
                          for line in list_file]  # remove `/` from beginning if needed

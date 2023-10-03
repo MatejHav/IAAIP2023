@@ -65,7 +65,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 loss.backward()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
-                progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item()}")
+                progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)}")
                 del loss
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -85,11 +85,20 @@ def training_loop(num_epochs, dataloaders, models, device):
                 targets = targets.to(device)
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
-                predictions = model(batch_of_segments)
-                loss = compute_loss(predictions, targets)
-                total_loss_val += torch.mean(loss)
+                    predictions = model(batch_of_segments)
+                    del batch, batch_of_segments
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    loss = compute_loss(predictions, targets)
+                    del targets, predictions
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    total_loss_val += torch.mean(loss).item()
+                    del loss
+                    gc.collect()
+                    torch.cuda.empty_cache()
             total_loss_val /= len(progress_bar_val)
-            # print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {total_loss_train} | TOTAL VALIDATION LOSS: {total_loss_val}')
+            print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
 
         # Test the model
         model.train(False)
@@ -101,11 +110,20 @@ def training_loop(num_epochs, dataloaders, models, device):
             targets = targets.to(device)
             with torch.no_grad():
                 batch_of_segments = backbone(batch).to(device)
-            predictions = model(batch_of_segments)
-            loss = compute_loss(predictions, targets)
-            total_loss_test += torch.mean(loss)
+                predictions = model(batch_of_segments)
+                del batch, batch_of_segments
+                gc.collect()
+                torch.cuda.empty_cache()
+                loss = compute_loss(predictions, targets)
+                del targets, predictions
+                gc.collect()
+                torch.cuda.empty_cache()
+                total_loss_test += torch.mean(loss).item()
+                del loss
+                gc.collect()
+                torch.cuda.empty_cache()
         total_loss_test /= len(progress_bar_test)
-        print(f"TOTAL TEST LOSS: {total_loss_test}")
+        print(f"TOTAL TEST LOSS: {round(total_loss_test, 3)}")
         path = os.path.join(models[model_name]['path'], f"model_{time.time()}.model")
         torch.save(model, path)
         print(f"MODEL SAVED IN {path}.")

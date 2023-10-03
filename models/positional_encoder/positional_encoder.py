@@ -43,20 +43,3 @@ class PositionalEncoder(nn.Module):
         for n in range(x.shape[0]):
             x[n] += self.pe[:x.shape[1]]
         return self.dropout(x)
-
-
-if __name__ == "__main__":
-    # test = torch.Tensor([
-    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
-    #     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
-    # ])
-    test = torch.Tensor([
-        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
-         [[1 for _ in range(7)] for _ in range(7)]],
-        [[[1 for _ in range(7)] for _ in range(7)], [[1 for _ in range(7)] for _ in range(7)],
-         [[1 for _ in range(7)] for _ in range(7)]]
-    ])
-    positional_encoder = PositionalEncoder((7, 7), 0.1, 512)
-    print(positional_encoder(test))

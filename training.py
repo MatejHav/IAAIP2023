@@ -1,10 +1,12 @@
 import torch
 import os
 import time
+import gc
+import numpy as np
 
 from torch.optim import AdamW
 from tqdm.auto import tqdm
-from culane.main import get_dataloader
+from main import get_dataloader
 from models.model_collection import get_basic_model
 
 
@@ -21,7 +23,6 @@ def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     selection_empty = targets[:, :, :, 2] <= 0.5
     should_be_empty = (predictions[selection_empty] - targets[selection_empty]) ** 2 / torch.sum(selection_empty)
     temp = 0.5 * should_be_empty.sum()
-    del selection_empty, should_be_empty
     selection_lane = targets[:, :, :, 2] > 0.5
     should_be_lane = (predictions[selection_lane] - targets[selection_lane]) ** 2 / torch.sum(selection_lane)
     return temp + 0.5 * should_be_lane.sum()
@@ -33,31 +34,40 @@ def training_loop(num_epochs, dataloaders, models, device):
         print(f'TRAINING MODEL {model_name}. SAVING INTO {models[model_name]["path"]}.')
         if not os.path.exists(models[model_name]['path']):
             os.mkdir(models[model_name]['path'])
-        model = models[model_name]['model']
+        backbone, model = models[model_name]['model']
+        backbone.to(device)
         model.to(device)
         optimizer = AdamW(model.parameters(), lr=5e-5)
+        loss_function = compute_loss
         for epoch in range(num_epochs):
             # Train the model
             model.train()
             progress_bar_train = tqdm(dataloaders['train'])
-            progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch}")
+            progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             total_loss_train = 0
             for batch, targets, _ in progress_bar_train:
                 # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
                 # Make predictions
-                predictions = model(batch)
-                del batch
+                # Turn all the frames into segments. Shape(batch_size, segment_number, segment_x, segment_y)
+                with torch.no_grad():
+                    batch_of_segments = backbone(batch).to(device)
+                predictions = model(batch_of_segments)
+                del batch, batch_of_segments
+                gc.collect()
                 torch.cuda.empty_cache()
                 # Compute loss
-                loss = compute_loss(predictions, targets)
+                loss = loss_function(predictions, targets)
                 del targets, predictions
+                gc.collect()
                 torch.cuda.empty_cache()
                 loss.backward()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
+                progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item()}")
                 del loss
+                gc.collect()
                 torch.cuda.empty_cache()
                 # Learn
                 optimizer.step()
@@ -76,7 +86,6 @@ def training_loop(num_epochs, dataloaders, models, device):
                 predictions = model(batch)
                 loss = compute_loss(predictions, targets)
                 total_loss_val += torch.mean(loss)
-                del batch, targets, loss
             total_loss_val /= len(progress_bar_val)
             print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {total_loss_train} | TOTAL VALIDATION LOSS: {total_loss_val}')
 
@@ -91,7 +100,6 @@ def training_loop(num_epochs, dataloaders, models, device):
             predictions = model(batch)
             loss = compute_loss(predictions, targets)
             total_loss_test += torch.mean(loss)
-            del batch, targets, loss
         total_loss_test /= len(progress_bar_test)
         print(f"TOTAL TEST LOSS: {total_loss_test}")
         path = os.path.join(models[model_name]['path'], f"model_{time.time()}.model")
@@ -108,9 +116,9 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 5
-    batch_size = 5
+    batch_size = 2
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size),
+        'train': get_dataloader('train', batch_size, subset=10),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }

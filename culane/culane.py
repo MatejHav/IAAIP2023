@@ -11,7 +11,7 @@ import culane.utils.culane_metric as culane_metric
 from culane.lane_dataset_loader import LaneDatasetLoader
 
 SPLIT_FILES = {
-    'train': "list/train.txt",
+    'train': "list/train_10.txt",
     'val': 'list/val.txt',
     'test': "list/test.txt",
     'normal': 'list/test_split/test0_normal.txt',
@@ -28,7 +28,7 @@ SPLIT_FILES = {
 
 
 class CULane(LaneDatasetLoader):
-    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, load_formatted=True):
+    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, load_formatted=True, subset=100):
         self.split = split
         self.root = root
         self.official_metric = official_metric
@@ -44,6 +44,7 @@ class CULane(LaneDatasetLoader):
 
 
         self.img_w, self.img_h = 1640, 590
+        self.subset = subset
         self.annotations = []
         self.load_annotations()
         self.max_lanes = 4 if max_lanes is None else max_lanes
@@ -90,7 +91,7 @@ class CULane(LaneDatasetLoader):
         self.annotations = []
         self.max_lanes = 0
         os.makedirs('./culane/cache', exist_ok=True)
-        cache_path = './culane/cache/culane_{}'.format(self.split)
+        cache_path = './culane/cache/culane_{}'.format(self.split) + ('_' + str(self.subset) if self.subset < 100 else '')
 
         if os.path.exists(cache_path):
             print(f'LOADING {self.split.upper()} CACHED DATA')

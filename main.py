@@ -14,9 +14,9 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=100):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, load_formatted=True)
+    dataset = LaneDataset(split=split, root=root, load_formatted=True, subset=subset)
     loader = DataLoader(dataset=dataset,
                               batch_size=batch_size,
                               shuffle=False,  # !

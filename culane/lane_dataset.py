@@ -14,11 +14,11 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 GROUND_TRUTH_GRID = (64, 160)
 
+
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
 
 class LaneDataset(Dataset):
-
     """
     A PyTorch dataset class to handle lane detection data. 
     It abstracts the data loading, preprocessing, augmentation, and conversion to model-friendly formats.
@@ -108,8 +108,6 @@ class LaneDataset(Dataset):
 
         # y at each x offset
         self.offsets_ys = np.arange(self.img_h, -1, -self.strip_size)
-        if "load_formatted" in kwargs and not kwargs["load_formatted"]:
-            self.transform_annotations()
 
         if "load_formatted" in kwargs:
             self.load_formatted = kwargs['load_formatted']
@@ -131,13 +129,11 @@ class LaneDataset(Dataset):
     def annotations(self):
         return self.dataset.annotations
 
-
     def transform_annotations(self):
         """
         Transform dataset annotations to the model's target format.
         """
         self.dataset.annotations = np.array(list(map(self.transform_annotation, self.dataset.annotations)))
-
 
     def filter_lane(self, lane):
         """
@@ -159,8 +155,6 @@ class LaneDataset(Dataset):
 
         return filtered_lane
 
-
-
     def transform_annotation(self, anno, img_wh=None):
         """
         Transforms an annotation from its original format to the format 
@@ -174,8 +168,6 @@ class LaneDataset(Dataset):
         Returns:
             dict: Transformed annotation.
         """
-        if "old_anno" in anno:
-            return anno
         if img_wh is None:
             img_h = self.dataset.get_img_heigth(anno['path'])
             img_w = self.dataset.get_img_width(anno['path'])
@@ -193,7 +185,7 @@ class LaneDataset(Dataset):
         # normalize the annotation coordinates between 0 and 1
         old_lanes = [[(x / float(img_w), y / float(img_h)) for x, y in lane]
                      for lane in old_lanes]
-        # create tranformed annotations
+        # create transformed annotations
         # 32 samples of y coordinate
         # 80 samples of x coordinate
         # 3 -> length, angle, probability
@@ -205,7 +197,7 @@ class LaneDataset(Dataset):
                 next_point = lane[index + 1]
                 vector = (next_point[0] - point[0], next_point[1] - point[1])
                 # Length can be max sqrt(0.1**2 + 0.1**2) = 0.141
-                length = min(0.141, np.sqrt(vector[0]**2 + vector[1]**2))
+                length = min(0.141, np.sqrt(vector[0] ** 2 + vector[1] ** 2))
                 # Angle: arctan(y/x)
                 angle = np.arctan(vector[1] / (vector[0] + 1e-5))
                 # Closest bin to the coordinates
@@ -216,8 +208,7 @@ class LaneDataset(Dataset):
                 # Probability of ground truth is always 1
                 lanes[y_bin, x_bin, 2] = 1
 
-        new_anno = {'path': anno['path'], 'label': lanes, 'old_anno': anno}
-        return new_anno
+        return {'path': anno['path'], 'lanes': lanes}
 
     def label_to_lanes(self, label):
         """
@@ -238,7 +229,8 @@ class LaneDataset(Dataset):
                     length = label[y, x, 0]
                     angle = label[y, x, 1]
                     temp = [(int(x / GROUND_TRUTH_GRID[1] * img_width), int(y / GROUND_TRUTH_GRID[0] * img_height)),
-                            (int((x / GROUND_TRUTH_GRID[1] + np.cos(angle) * length) * img_width), int((y / GROUND_TRUTH_GRID[0] + np.sin(angle) * length) * img_height))]
+                            (int((x / GROUND_TRUTH_GRID[1] + np.cos(angle) * length) * img_width),
+                             int((y / GROUND_TRUTH_GRID[0] + np.sin(angle) * length) * img_height))]
                     lanes.append(temp)
         return lanes
 
@@ -296,8 +288,8 @@ class LaneDataset(Dataset):
                 start_point = l[0]
                 end_point = l[1]
                 img = cv2.line(img, start_point, end_point,
-                                   color=color,
-                                   thickness=3 if matches is None else 3)
+                               color=color,
+                               thickness=3 if matches is None else 3)
         return img, fp, fn
 
     def __getitem__(self, idx):
@@ -313,8 +305,8 @@ class LaneDataset(Dataset):
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
         if not self.load_formatted:
-            return (img, self.transform_annotation(item), idx)
-        return (img, item['lanes'], idx)
+            return img, self.transform_annotation(item)['lanes'], idx
+        return img, item['lanes'], idx
 
     def __len__(self):
         return len(self.dataset)

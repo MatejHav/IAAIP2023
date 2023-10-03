@@ -11,7 +11,7 @@ import culane.utils.culane_metric as culane_metric
 from culane.lane_dataset_loader import LaneDatasetLoader
 
 SPLIT_FILES = {
-    'train': "list/train_10.txt",
+    'train': "list/train.txt",
     'val': 'list/val.txt',
     'test': "list/test.txt",
     'normal': 'list/test_split/test0_normal.txt',
@@ -34,6 +34,7 @@ class CULane(LaneDatasetLoader):
         self.official_metric = official_metric
         self.load_formatted = load_formatted
         self.logger = logging.getLogger(__name__)
+        SPLIT_FILES['train'] = SPLIT_FILES['train'][:-4] + ('_' + str(subset) if subset < 100 else '') + '.txt'
 
         if root is None:
             raise Exception('Please specify the root directory')
@@ -41,7 +42,6 @@ class CULane(LaneDatasetLoader):
             raise Exception('Split `{}` does not exist.'.format(split))
 
         self.list = os.path.join(root, SPLIT_FILES[split])
-
 
         self.img_w, self.img_h = 1640, 590
         self.subset = subset
@@ -82,7 +82,6 @@ class CULane(LaneDatasetLoader):
         lanes = [list(set(lane)) for lane in lanes]  # remove duplicated points
         lanes = [lane for lane in lanes if len(lane) >= 2]  # remove lanes with less than 2 points
 
-
         lanes = [sorted(lane, key=lambda x: x[1]) for lane in lanes]  # sort by y
 
         return {'path': img_path, 'lanes': lanes}
@@ -91,7 +90,8 @@ class CULane(LaneDatasetLoader):
         self.annotations = []
         self.max_lanes = 0
         os.makedirs('./culane/cache', exist_ok=True)
-        cache_path = './culane/cache/culane_{}'.format(self.split) + ('_' + str(self.subset) if self.subset < 100 else '')
+        cache_path = f'./culane/cache/culane_{self.split}_{"formatted" if self.load_formatted else "raw"}' \
+                     + ('_' + str(self.subset) if self.subset < 100 else '')
 
         if os.path.exists(cache_path):
             print(f'LOADING {self.split.upper()} CACHED DATA')
@@ -149,4 +149,3 @@ class CULane(LaneDatasetLoader):
 
     def __len__(self):
         return len(self.annotations)
-    

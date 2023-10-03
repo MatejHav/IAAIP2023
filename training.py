@@ -83,11 +83,13 @@ def training_loop(num_epochs, dataloaders, models, device):
             for batch, targets, _ in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)
-                predictions = model(batch)
+                with torch.no_grad():
+                    batch_of_segments = backbone(batch).to(device)
+                predictions = model(batch_of_segments)
                 loss = compute_loss(predictions, targets)
                 total_loss_val += torch.mean(loss)
             total_loss_val /= len(progress_bar_val)
-            print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {total_loss_train} | TOTAL VALIDATION LOSS: {total_loss_val}')
+            # print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {total_loss_train} | TOTAL VALIDATION LOSS: {total_loss_val}')
 
         # Test the model
         model.train(False)
@@ -97,7 +99,9 @@ def training_loop(num_epochs, dataloaders, models, device):
         for batch, targets, _ in progress_bar_test:
             batch = batch.to(device)
             targets = targets.to(device)
-            predictions = model(batch)
+            with torch.no_grad():
+                batch_of_segments = backbone(batch).to(device)
+            predictions = model(batch_of_segments)
             loss = compute_loss(predictions, targets)
             total_loss_test += torch.mean(loss)
         total_loss_test /= len(progress_bar_test)
@@ -116,7 +120,7 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 5
-    batch_size = 2
+    batch_size = 32
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=10),
         'val': get_dataloader('val', batch_size),

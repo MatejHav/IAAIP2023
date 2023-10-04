@@ -252,14 +252,17 @@ class LaneDataset(Dataset):
         # Get image if not provided
         if img is None:
             # print(self.annotations[idx]['path'])
-            img, label, _ = self.__getitem__(idx)
+            img, _, _ = self.__getitem__(idx)
+            if label is None:
+                img, label, _ = self[idx]
             label = self.label_to_lanes(label)
             img = img.permute(1, 2, 0).numpy()
             if self.normalize:
                 img = img * np.array(IMAGENET_STD) + np.array(IMAGENET_MEAN)
             img = (img * 255).astype(np.uint8)
         else:
-            _, label, _ = self.__getitem__(idx)
+            if label is None:
+                _, label, _ = self.__getitem__(idx)
             label = self.label_to_lanes(label)
         img = cv2.resize(img, (self.img_w, self.img_h))
 

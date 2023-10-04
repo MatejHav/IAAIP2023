@@ -11,8 +11,8 @@ from models.transformer.transformer_encoder import TransformerEncoderWrapper
 
 
 class BasicTransformer(Transformer):
-    def __init__(self, d_model: int, nhead: int = 8, num_encoder_layers: int = 2,
-                 num_decoder_layers: int = 2, dim_feedforward: int = 2048, dropout: float = 0.1):
+    def __init__(self, d_model: int, nhead: int = 8, num_encoder_layers: int = 6,
+                 num_decoder_layers: int = 6, dim_feedforward: int = 2048, dropout: float = 0.3):
         super().__init__(d_model, nhead, batch_first=True)
         encoder_wrapper = TransformerEncoderWrapper(num_encoder_layers, d_model, nhead, dim_feedforward, dropout)
         decoder_wrapper = TransformerDecoderWrapper(num_decoder_layers, d_model, nhead, dim_feedforward, dropout)

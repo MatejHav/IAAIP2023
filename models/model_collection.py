@@ -7,7 +7,7 @@ import numpy as np
 
 def get_basic_model(device):
     backbone = Backbone('resnet18')
-    pe = PositionalEncoder((25, 10), 0.2, 512, device)
+    pe = PositionalEncoder((25, 10), 0.4, 512, device)
     transformer = BasicTransformer(d_model=25 * 10, nhead=10)
     model = BasicLaneDetector(pe, transformer, device)
     return backbone, model

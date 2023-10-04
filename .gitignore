@@ -166,3 +166,5 @@ culane/data
 tusimple/data
 
 culane/cache/
+
+models/checkpoints/

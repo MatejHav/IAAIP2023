@@ -19,7 +19,7 @@ def get_dataloader(split: str = 'train', batch_size: int = 30, subset=100):
     dataset = LaneDataset(split=split, root=root, load_formatted=True, subset=subset)
     loader = DataLoader(dataset=dataset,
                               batch_size=batch_size,
-                              shuffle=False,  # !
+                              shuffle=True,  # Should shuffle the batches for each epoch
                               num_workers=1,
                               worker_init_fn=_worker_init_fn_)
     return loader

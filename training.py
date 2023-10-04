@@ -34,6 +34,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         print(f'TRAINING MODEL {model_name}. SAVING INTO {models[model_name]["path"]}.')
         if not os.path.exists(models[model_name]['path']):
             os.mkdir(models[model_name]['path'])
+        saved_time = int(time.time())
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
@@ -98,7 +99,11 @@ def training_loop(num_epochs, dataloaders, models, device):
                     gc.collect()
                     torch.cuda.empty_cache()
             total_loss_val /= len(progress_bar_val)
-            print(f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+            print(
+                f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+            path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{epoch}.model")
+            torch.save(model, path)
+            print(f"MODEL SAVED IN {path}.")
 
         # Test the model
         model.train(False)
@@ -123,10 +128,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 gc.collect()
                 torch.cuda.empty_cache()
         total_loss_test /= len(progress_bar_test)
-        print(f"TOTAL TEST LOSS: {round(total_loss_test, 3)}")
-        path = os.path.join(models[model_name]['path'], f"model_{time.time()}.model")
-        torch.save(model, path)
-        print(f"MODEL SAVED IN {path}.")
+        print(f"[RESULTS] TOTAL TEST LOSS: {round(total_loss_test, 3)}")
 
 
 if __name__ == "__main__":
@@ -137,15 +139,15 @@ if __name__ == "__main__":
     elif torch.backends.mps.is_available():
         device = torch.device("mps")
         print("MPS RECOGNIZED.")
-    else: 
+    else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 5
+    num_epochs = 10
     batch_size = 32
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=10),
+        'train': get_dataloader('train', batch_size, subset=30),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }

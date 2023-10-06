@@ -11,34 +11,44 @@ from IPython.display import display
 from models.backbone.backbone import Backbone
 
 
+def transform_output_to_mask(y, x, output, img):
+    length = output[y, x, 0]
+    angle = output[y, x, 1]
+
+    x1 = (x / output.shape[1] * img.shape[1]).astype(int)
+    y1 = (y / output.shape[0] * img.shape[0]).astype(int)
+
+    x2 = ((x / output.shape[1] + np.cos(angle) * length) * img.shape[1]).astype(int)
+    y2 = ((y / output.shape[0] + np.sin(angle) * length) * img.shape[0]).astype(int)
+
+    temp = np.column_stack((x1, y1, x2, y2))
+
+    for x1, y1, x2, y2 in temp:
+        cv2.line(img, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
+
+
 def compute_iou(prediction, target):
-    prediction = prediction.cpu()
-    target = target.cpu()
+    prediction = prediction.cpu().numpy()
+    target = target.cpu().numpy()
     img_height = 320
     img_width = 800
     # Covert predictions and targets into mask
     pred_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
     tar_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
-    for y in range(prediction.shape[0]):
-        for x in range(prediction.shape[1]):
-            if prediction[y, x, 2] >= 0.5:
-                length = prediction[y, x, 0]
-                angle = prediction[y, x, 1]
-                temp = [(int(x / prediction.shape[1] * img_width), int(y / prediction.shape[0] * img_height)),
-                        (int((x / prediction.shape[1] + np.cos(angle) * length) * img_width),
-                         int((y / prediction.shape[0] + np.sin(angle) * length) * img_height))]
-                pred_img = cv2.line(pred_img, temp[0], temp[1], color=(1, 1, 1), thickness=3)
-            if target[y, x, 2] >= 0.5:
-                length = target[y, x, 0]
-                angle = target[y, x, 1]
-                temp = [(int(x / prediction.shape[1] * img_width), int(y / prediction.shape[0] * img_height)),
-                        (int((x / prediction.shape[1] + np.cos(angle) * length) * img_width),
-                         int((y / prediction.shape[0] + np.sin(angle) * length) * img_height))]
-                tar_img = cv2.line(tar_img, temp[0], temp[1], color=(1, 1, 1), thickness=3)
+    # Add predicted lanes into mask
+    pred_y, pred_x = np.where(prediction[:, :, 2] >= 0.5)
+    transform_output_to_mask(pred_y, pred_x, prediction, pred_img)
+    tar_y, tar_x = np.where(target[:, :, 2] >= 0.5)
+    transform_output_to_mask(tar_y, tar_x, target, tar_img)
+    # Cast into a binary image
+    pred_img = pred_img.astype(bool)
+    tar_img = tar_img.astype(bool)
     # Compute IOU over mask
-    intersection = pred_img * tar_img
-    union = np.clip(pred_img + tar_img, a_min=0, a_max=1)
-    return sum(intersection) / sum(union)
+    intersection = pred_img & tar_img
+    union = pred_img | tar_img
+    if np.sum(union) == 0:
+        return 1
+    return np.sum(intersection) / np.sum(union)
 
 
 def show_culane_statistics(models, show=False, save=True, root='./', batch_size=32, device=torch.device,
@@ -63,7 +73,7 @@ def show_culane_statistics(models, show=False, save=True, root='./', batch_size=
         model.to(device)
         row = {}
         total_batch_len = sum([len(loader) for loader in dataloaders.values()])
-        bar = tqdm(range(len(dataloaders.keys()) * total_batch_len))
+        bar = tqdm(range(total_batch_len))
         for key, dataloader in dataloaders.items():
             bar.set_description(f"[EVALUATION] CURRENT CATEGORY: {key} | ")
             all_iou = []
@@ -88,8 +98,7 @@ def show_culane_statistics(models, show=False, save=True, root='./', batch_size=
                 gc.collect()
                 torch.cuda.empty_cache()
             row[key] = np.mean(all_iou)
-
-        result_table.append(pd.Series(row, index=name, name=name))
+        result_table.loc[name] = pd.Series(row)
     if save:
         path = os.path.join(root, filename)
         result_table.to_csv(path)

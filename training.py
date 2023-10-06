@@ -22,10 +22,10 @@ def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     """
     selection_empty = targets[:, :, :, 2] <= 0.5
     should_be_empty = (predictions[selection_empty] - targets[selection_empty]) ** 2 / torch.sum(selection_empty)
-    temp = 0.5 * should_be_empty.sum()
+    temp = 0.75 * should_be_empty.sum()
     selection_lane = targets[:, :, :, 2] > 0.5
     should_be_lane = (predictions[selection_lane] - targets[selection_lane]) ** 2 / torch.sum(selection_lane)
-    return temp + 0.5 * should_be_lane.sum()
+    return temp + 0.25 * should_be_lane.sum()
 
 
 def training_loop(num_epochs, dataloaders, models, device):
@@ -38,8 +38,8 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), lr=5e-5)
-        loss_function = compute_loss
+        optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=1e-3)
+        loss_function = torch.nn.MSELoss
         for epoch in range(num_epochs):
             # Train the model
             model.train()
@@ -144,10 +144,10 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 10
-    batch_size = 32
+    num_epochs = 5
+    batch_size = 30
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=30),
+        'train': get_dataloader('train', batch_size, subset=10),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }

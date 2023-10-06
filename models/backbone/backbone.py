@@ -15,10 +15,10 @@ class Backbone(nn.Module):
 
         # Remove the fully connected layer (classifier) at the end
         self.model = nn.Sequential(*list(get_model(model_name).children())[:-2])
-
-        # Freeze training of the backbone
-        for param in self.model.parameters():
-            param.requires_grad = False
+        #
+        # # Freeze training of the backbone
+        # for param in self.model.parameters():
+        #     param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

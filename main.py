@@ -46,7 +46,7 @@ if __name__ == '__main__':
     pbar = tqdm(train_loader)
     backbone = Backbone('resnet18')
     backbone.to(device)
-    model = torch.load('./models/checkpoints/model_1696365334_9.model')
+    model = torch.load('./models/checkpoints/model_1696405821_2.model')
     model.to(device)
     for i, (images, lanes, _) in enumerate(pbar):
         # What we're doing here: the original tensor is likely in the format (channels, height, width)

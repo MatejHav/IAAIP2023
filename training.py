@@ -39,7 +39,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone.to(device)
         model.to(device)
         optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=1e-3)
-        loss_function = torch.nn.MSELoss
+        loss_function = torch.nn.MSELoss()
         for epoch in range(num_epochs):
             # Train the model
             model.train()

@@ -295,12 +295,32 @@ class LaneDataset(Dataset):
                                thickness=3 if matches is None else 3)
         return img, fp, fn
 
+    def create_mask(self, lanes):
+        mask = np.zeros((self.img_h, self.img_w, 3))
+
+        y, x = np.where(lanes[:, :, 2] >= 0.5)
+
+        length = lanes[y, x, 0]
+        angle = lanes[y, x, 1]
+
+        x1 = (x / lanes.shape[1] * mask.shape[1]).astype(int)
+        y1 = (y / lanes.shape[0] * mask.shape[0]).astype(int)
+
+        x2 = ((x / lanes.shape[1] + np.cos(angle) * length) * mask.shape[1]).astype(int)
+        y2 = ((y / lanes.shape[0] + np.sin(angle) * length) * mask.shape[0]).astype(int)
+
+        temp = np.column_stack((x1, y1, x2, y2))
+
+        for x1, y1, x2, y2 in temp:
+            cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
+        return mask[:, :, 0].astype(np.float32)
+
     def __getitem__(self, idx):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
 
         # Resize image
-        img = cv2.resize(img, (self.img_h, self.img_w))
+        img = cv2.resize(img, (self.img_w, self.img_h))
         # Standardize image
         img = img / 255
         # Normalize image
@@ -308,8 +328,11 @@ class LaneDataset(Dataset):
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
         if not self.load_formatted:
-            return img, self.transform_annotation(item)['lanes'], idx
-        return img, item['lanes'], idx
+            transformed = self.transform_annotation(item)['lanes']
+            mask = self.create_mask(transformed)
+            return img, transformed, mask, idx
+        mask = self.create_mask(item['lanes'])
+        return img, item['lanes'], mask, idx
 
     def __len__(self):
         return len(self.dataset)

@@ -2,12 +2,13 @@ import torch
 import os
 import time
 import gc
+import json
 import numpy as np
 
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 from main import get_dataloader
-from models.model_collection import get_basic_model
+from models.model_collection import *
 
 
 def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -28,6 +29,11 @@ def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     return temp + 0.25 * should_be_lane.sum()
 
 
+def iou(predictions, targets):
+    return (1 - (predictions * targets + 1e-5).sum(dim=[1, 2]) / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum(
+        dim=[1, 2])).mean()
+
+
 def training_loop(num_epochs, dataloaders, models, device):
     for model_name in models:
         print("\n" + ''.join(['#'] * 25) + "\n")
@@ -38,15 +44,21 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), lr=5e-5, weight_decay=1e-3)
-        loss_function = torch.nn.MSELoss()
+        optimizer = AdamW(model.parameters(), lr=0.05, weight_decay=0.001)
+        loss_function = iou
+        losses = {
+            'train': [],
+            'val': []
+        }
         for epoch in range(num_epochs):
             # Train the model
             model.train()
             progress_bar_train = tqdm(dataloaders['train'])
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             total_loss_train = 0
-            for batch, targets, _ in progress_bar_train:
+            for batch, targets, masks, _ in progress_bar_train:
+                if models[model_name]['use_masks']:
+                    targets = masks
                 # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
@@ -60,19 +72,17 @@ def training_loop(num_epochs, dataloaders, models, device):
                 torch.cuda.empty_cache()
                 # Compute loss
                 loss = loss_function(predictions, targets)
-                del targets, predictions
-                gc.collect()
-                torch.cuda.empty_cache()
+                optimizer.zero_grad()
                 loss.backward()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
-                progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)}")
-                del loss
+                progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)} |")
+                losses['train'].append(loss.item())
+                del targets, predictions, loss
                 gc.collect()
                 torch.cuda.empty_cache()
                 # Learn
                 optimizer.step()
-                optimizer.zero_grad()
 
             total_loss_train /= len(progress_bar_train)
 
@@ -81,7 +91,9 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val = tqdm(dataloaders['val'])
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch}")
             total_loss_val = 0
-            for batch, targets, _ in progress_bar_val:
+            for batch, targets, masks, _ in progress_bar_val:
+                if models[model_name]['use_masks']:
+                    targets = masks
                 batch = batch.to(device)
                 targets = targets.to(device)
                 with torch.no_grad():
@@ -90,11 +102,12 @@ def training_loop(num_epochs, dataloaders, models, device):
                     del batch, batch_of_segments
                     gc.collect()
                     torch.cuda.empty_cache()
-                    loss = compute_loss(predictions, targets)
+                    loss = loss_function(predictions, targets)
                     del targets, predictions
                     gc.collect()
                     torch.cuda.empty_cache()
                     total_loss_val += torch.mean(loss).item()
+                    losses['val'].append(loss.item())
                     del loss
                     gc.collect()
                     torch.cuda.empty_cache()
@@ -103,6 +116,10 @@ def training_loop(num_epochs, dataloaders, models, device):
                 f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
             path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{epoch}.model")
             torch.save(model, path)
+            os.makedirs(os.path.join(models[model_name]['path'], 'stats'), exist_ok=True)
+            with open(os.path.join(models[model_name]['path'], 'stats', f"model_{saved_time}_{epoch}.json"),
+                      'w') as file:
+                json.dump(losses, file)
             print(f"MODEL SAVED IN {path}.")
 
         # Test the model
@@ -110,7 +127,9 @@ def training_loop(num_epochs, dataloaders, models, device):
         progress_bar_test = tqdm(dataloaders['test'])
         progress_bar_test.set_description(f"[TESTING]")
         total_loss_test = 0
-        for batch, targets, _ in progress_bar_test:
+        for batch, targets, masks, _ in progress_bar_test:
+            if models[model_name]['use_masks']:
+                targets = masks
             batch = batch.to(device)
             targets = targets.to(device)
             with torch.no_grad():
@@ -119,7 +138,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 del batch, batch_of_segments
                 gc.collect()
                 torch.cuda.empty_cache()
-                loss = compute_loss(predictions, targets)
+                loss = loss_function(predictions, targets)
                 del targets, predictions
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -147,12 +166,13 @@ if __name__ == "__main__":
     num_epochs = 5
     batch_size = 30
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=10),
+        'train': get_dataloader('train', batch_size, subset=50),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }
     models = {
-        "basic_lane_detector": {"model": get_basic_model(device), "path": "./models/checkpoints/"}
+        # "basic_lane_detector": {"model": get_basic_model(device), "path": "./models/checkpoints/", "use_masks": False},
+        "mask_predictor": {"model": get_mask_model(device), "path": "./models/checkpoints/mask/", "use_masks": True}
     }
 
     training_loop(num_epochs, culane_dataloader, models, device)

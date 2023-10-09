@@ -118,9 +118,9 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
     models = [
-        {'path': './models/checkpoints/model_1696365334_9.model', 'name': 'basic_lane_transformer',
+        {'path': './models/checkpoints/model_1696698303_0.model', 'name': 'mask_predictor',
          'backbone': 'resnet18'}
     ]
     root = './results/'
     os.makedirs(root, exist_ok=True)
-    show_culane_statistics(models, show=True, save=True, root=root, batch_size=32, device=device)
+    show_culane_statistics(models, show=True, save=True, root=root, batch_size=30, device=device)

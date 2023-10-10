@@ -20,11 +20,10 @@ def _worker_init_fn_(_):
 
 def get_dataloader(split: str = 'train', batch_size: int = 30, subset=100):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset)
+    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False)
     loader = DataLoader(dataset=dataset,
                               batch_size=batch_size,
                               shuffle=False,  # Should shuffle the batches for each epoch
-                              num_workers=1,
                               worker_init_fn=_worker_init_fn_)
     return loader
 
@@ -44,9 +43,9 @@ if __name__ == '__main__':
     train_loader = get_dataloader('train', batch_size=30, subset=10)
     num_epochs = 10
     pbar = tqdm(train_loader)
-    backbone = Backbone('resnet34')
+    backbone = Backbone('grid')
     backbone.to(device)
-    model = torch.load('./models/checkpoints/model_1696782274_0.model')
+    model = torch.load('./models/checkpoints/mask/model_1696942501_0.model')
     model.to(device)
     for i, (images, lanes, masks, _) in enumerate(pbar):
         # What we're doing here: the original tensor is likely in the format (channels, height, width)
@@ -76,7 +75,7 @@ if __name__ == '__main__':
             # Need to multiply the batch_size with the index to get the actual correct frame
             # img = np.swapaxes(img, axis1=0, axis2=1)
             # img = np.swapaxes(img, axis1=1, axis2=2)
-            y, x = np.where(labels[j] >= 0.5)
+            y, x = np.where(labels[j] >= 0.3)
             img = img.cpu().numpy()
             img[0, y, x] = labels[j, y, x]
             img[1, y, x] = 1
@@ -84,4 +83,4 @@ if __name__ == '__main__':
             img = np.transpose(img, axes=[1, 2, 0])
             cv2.imshow('img', img)
             cv2.waitKey(50)
-        cv2.waitKey(0)
+        # cv2.waitKey(0)

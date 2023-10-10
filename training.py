@@ -44,7 +44,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), lr=0.05, weight_decay=0.001)
+        optimizer = AdamW(model.parameters(), lr=0.005)
         loss_function = iou
         losses = {
             'train': [],
@@ -120,7 +120,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             with open(os.path.join(models[model_name]['path'], 'stats', f"model_{saved_time}_{epoch}.json"),
                       'w') as file:
                 json.dump(losses, file)
-            print(f"MODEL SAVED IN {path}.")
+            print(f"MODEL SAVED IN {path}")
 
         # Test the model
         model.train(False)
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     num_epochs = 5
     batch_size = 30
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=50),
+        'train': get_dataloader('train', batch_size, subset=30),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }

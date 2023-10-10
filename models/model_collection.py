@@ -17,6 +17,6 @@ def get_basic_model(device):
 def get_mask_model(device):
     backbone = Backbone('resnet34')
     pe = PositionalEncoder((20, 20), 0.2, 16*40, device)
-    transformer = torch.nn.Transformer(d_model=20 * 20, nhead=20, dropout=0.1)
+    transformer = torch.nn.Transformer(d_model=20 * 20, nhead=10, dropout=0.1, num_encoder_layers=4, num_decoder_layers=4, dim_feedforward=128, batch_first=True)
     model = MaskPredictor(pe, transformer, device)
     return backbone, model

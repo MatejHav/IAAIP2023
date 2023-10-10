@@ -14,7 +14,6 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 GROUND_TRUTH_GRID = (64, 160)
 
-
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
 
@@ -124,6 +123,7 @@ class LaneDataset(Dataset):
         transformations = iaa.Sequential([Resize({'height': self.img_h, 'width': self.img_w})])
         self.to_tensor = ToTensor()
         self.transform = iaa.Sequential([iaa.Sometimes(then_list=augmentations, p=aug_chance), transformations])
+        self.resizing_coordinates = {}
 
     @property
     def annotations(self):
@@ -318,9 +318,23 @@ class LaneDataset(Dataset):
     def __getitem__(self, idx):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
+        # For some reason cv2 resize wants to have width and then height
+        original_shape = (img.shape[1], img.shape[0])
 
         # Resize image
-        img = cv2.resize(img, (self.img_w, self.img_h))
+        # img = cv2.resize(img, (self.img_w, self.img_h))
+        # To try to skew away from the underlying distribution, select random 320x800 position
+        # If we already tried to resize a frame from this video, resize it based on that
+        video_path = item['path'].split('/')[-2]
+        if video_path in self.resizing_coordinates:
+            y, x = self.resizing_coordinates[video_path]
+            img = img[y:y+self.img_h, x:x+self.img_w]
+        else:
+            y = np.random.randint(0, img.shape[0] - self.img_h)
+            x = np.random.randint(0, img.shape[1] - self.img_w)
+            self.resizing_coordinates[video_path] = (y, x)
+            img = img[y:y + self.img_h, x:x + self.img_w]
+
         # Standardize image
         img = img / 255
         # Normalize image
@@ -329,9 +343,11 @@ class LaneDataset(Dataset):
         img = self.to_tensor(img.astype(np.float32))
         if not self.load_formatted:
             transformed = self.transform_annotation(item)['lanes']
-            mask = self.create_mask(transformed)
+            # mask = self.create_mask(transformed)
+            mask = cv2.resize(self.create_mask(transformed), original_shape)[y:y+self.img_h, x:x + self.img_w]
             return img, transformed, mask, idx
-        mask = self.create_mask(item['lanes'])
+        # mask = self.create_mask(item['lanes'])
+        mask = cv2.resize(self.create_mask(item['lanes']), original_shape)[y:y + self.img_h, x:x + self.img_w]
         return img, item['lanes'], mask, idx
 
     def __len__(self):

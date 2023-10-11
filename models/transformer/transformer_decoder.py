@@ -24,6 +24,8 @@ class TransformerDecoderWrapper(nn.Module):
         # Create the TransformerDecoder
         self.transformer_decoder = TransformerDecoder(decoder_layer, num_layers)
 
+        prev_output = 0
+
     def forward(self, input_data: Tensor, last_prev_output: Tensor):
         """
         Forward pass.
@@ -35,5 +37,7 @@ class TransformerDecoderWrapper(nn.Module):
         Returns:
             torch.Tensor: The decoded output of shape (seq_len, batch_size, d_model).
         """
+
+        print('last prev output', last_prev_output)
         output = self.transformer_decoder(input_data, last_prev_output)
         return output

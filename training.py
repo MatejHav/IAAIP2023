@@ -66,7 +66,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                 # Turn all the frames into segments. Shape(batch_size, segment_number, segment_x, segment_y)
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
-                predictions = model(batch_of_segments)
+                # predictions = model(batch_of_segments)
+                predictions = model(batch_of_segments, targets)
                 del batch, batch_of_segments
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -98,7 +99,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                 targets = targets.to(device)
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
-                    predictions = model(batch_of_segments)
+                    # predictions = model(batch_of_segments)
+                    predictions = model(batch_of_segments, targets)
                     del batch, batch_of_segments
                     gc.collect()
                     torch.cuda.empty_cache()
@@ -134,7 +136,8 @@ def training_loop(num_epochs, dataloaders, models, device):
             targets = targets.to(device)
             with torch.no_grad():
                 batch_of_segments = backbone(batch).to(device)
-                predictions = model(batch_of_segments)
+                # predictions = model(batch_of_segments)
+                predictions = model(batch_of_segments, targets)
                 del batch, batch_of_segments
                 gc.collect()
                 torch.cuda.empty_cache()
@@ -163,8 +166,8 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 5
-    batch_size = 30
+    num_epochs = 50
+    batch_size = 10
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=30),
         'val': get_dataloader('val', batch_size),

@@ -166,8 +166,8 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 50
-    batch_size = 10
+    num_epochs = 1
+    batch_size = 2
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=30),
         'val': get_dataloader('val', batch_size),
@@ -175,7 +175,9 @@ if __name__ == "__main__":
     }
     models = {
         # "basic_lane_detector": {"model": get_basic_model(device), "path": "./models/checkpoints/", "use_masks": False},
-        "mask_predictor": {"model": get_mask_model(device), "path": "./models/checkpoints/mask/", "use_masks": True}
+        "mask_predictor": {"model": get_mask_model(device), "path": "./models/checkpoints/mask/", "use_masks": True},
+        # "mask_predictor_v2": {"model": get_mask_model_v2(device), "path": "./models/checkpoints/mask/", "use_masks": True}
+
     }
 
     training_loop(num_epochs, culane_dataloader, models, device)

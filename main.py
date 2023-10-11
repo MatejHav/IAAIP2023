@@ -18,7 +18,7 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=100):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
     root = './culane/data/'
     dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False)
     loader = DataLoader(dataset=dataset,
@@ -40,12 +40,12 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    train_loader = get_dataloader('train', batch_size=30, subset=10)
+    train_loader = get_dataloader('train', batch_size=10, subset=30)
     num_epochs = 10
     pbar = tqdm(train_loader)
-    backbone = Backbone('grid')
+    backbone = Backbone('resnet34')
     backbone.to(device)
-    model = torch.load('./models/checkpoints/mask/model_1696942501_0.model')
+    model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
     model.to(device)
     for i, (images, lanes, masks, _) in enumerate(pbar):
         # What we're doing here: the original tensor is likely in the format (channels, height, width)
@@ -75,7 +75,13 @@ if __name__ == '__main__':
             # Need to multiply the batch_size with the index to get the actual correct frame
             # img = np.swapaxes(img, axis1=0, axis2=1)
             # img = np.swapaxes(img, axis1=1, axis2=2)
+            # labels_mean = torch.mean(labels[j], dim=0)
+            # labels_stddev = torch.std(labels[j], dim=0)
+            # print(labels_mean)
+            # print(labels_stddev)
+            # print(labels)
             y, x = np.where(labels[j] >= 0.3)
+            # print('x = ', x, 'y = ', y)
             img = img.cpu().numpy()
             img[0, y, x] = labels[j, y, x]
             img[1, y, x] = 1

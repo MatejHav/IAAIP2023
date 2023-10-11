@@ -24,21 +24,21 @@ class MaskPredictorV2(nn.Module):
         self.device = device
         self.training = True
 
-    def forward_IGNORE(self, batch_of_segments: torch.Tensor, target_masks=None) -> torch.Tensor:
-        """
-        Forward pass of the entire model.
+    # def forward(self, batch_of_segments: torch.Tensor, target_masks=None) -> torch.Tensor:
+    #     """
+    #     Forward pass of the entire model.
 
-        :param batch_of_segments: Input batch. Size is (30, width, height)
-        :return: Outputs for the input frames
-        """
+    #     :param batch_of_segments: Input batch. Size is (30, width, height)
+    #     :return: Outputs for the input frames
+    #     """
 
-        positionally_encoded_segments = self.pe(batch_of_segments)
-        seq_masks = target_masks.view(target_masks.size(0), -1).permute(1, 0)
-        outputs = self.transformer(positionally_encoded_segments, seq_masks)
+    #     positionally_encoded_segments = self.pe(batch_of_segments)
+    #     seq_masks = target_masks.view(target_masks.size(0), -1).permute(1, 0)
+    #     outputs = self.transformer(positionally_encoded_segments, seq_masks)
 
-        masks = outputs.permute(1, 2, 0).view(64, 160, 3)
+    #     masks = outputs.permute(1, 2, 0).view(64, 160, 3)
 
-        return masks
+    #     return masks
 
     def forward(self, x, target_masks=None):
         # Reshaping and correction using shape_corrector
@@ -48,9 +48,12 @@ class MaskPredictorV2(nn.Module):
         x = self.pe(x)
         seq_features = x.flatten(start_dim=2)
 
-        if  True: # self.training:
-            seq_masks = target_masks.view(target_masks.size(0), 640, 400)  # Reshaping to match d_model. TODO: change back to 320, 800??
-            # seq_masks = target_masks.view(target_masks.size(0), 320, 800)
+        # Temporary solution for training
+        self.training = True
+        
+        if self.training:
+            print(f'TRAINING MODE ENABLED IN TRANSFORMER')
+            seq_masks = target_masks.view(target_masks.size(0), 640, 400)  # Reshaping to match d_model
             outputs = self.transformer(seq_features, seq_masks)
         else:
             outputs = self.transformer(seq_features, seq_features)

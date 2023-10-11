@@ -67,6 +67,7 @@ if __name__ == '__main__':
             batch_of_segments = backbone(images)
             labels = model(batch_of_segments)
         labels = labels.cpu()
+        
         del batch_of_segments
         gc.collect()
         torch.cuda.empty_cache()

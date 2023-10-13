@@ -234,92 +234,46 @@ class LaneDataset(Dataset):
                     lanes.append(temp)
         return lanes
 
-    def draw_annotation(self, idx, label=None, pred=None, img=None):
-        """
-        Visualize annotations and predictions on an image.
+    def fit_annotation(self, annotation):
+        # Lane is defined by f(x): w0*x^3 + w1*x^2 + w2*x + w3
+        # There are 4 expected lanes
+        # Each lane is defined by: w0, w1, w2, w3 and x1, x2 representing the starting x and ending x coordinate
+        video_path = annotation['path'].split('/')[-2]
+        starting_y, starting_x = self.resizing_coordinates[video_path]
+        lanes = annotation['lanes']
+        # removing lanes with less than 2 points
+        lanes = filter(lambda x: len(x) > 1, lanes)
+        # sort lane points by Y (bottom to top of the image)
+        lanes = [sorted(lane, key=lambda x: -x[1]) for lane in lanes]
+        # remove points with same Y (keep first occurrence)
+        lanes = [self.filter_lane(lane) for lane in lanes]
+        # normalize the annotation coordinates between 0 and 1
+        lanes = [[((x - starting_x) / float(self.img_w), (y - starting_y) / float(self.img_h)) for x, y in lane]
+                     for lane in lanes]
 
-        Args:
-            idx (int): Index of the dataset item.
-            label (np.ndarray): Ground truth labels.
-            pred (np.ndarray): Predicted labels.
-            img (np.ndarray): Input image.
+        fit_truth = np.zeros((4, 6), dtype=np.float32)
+        for index, lane in enumerate(lanes):
+            # create x vector of x^3, x^2, x and 1
+            input_x = np.array([x for x, y in lane])
+            X = np.ones((len(lane), 4))
+            X[:, 0] = input_x ** 3
+            X[:, 1] = input_x ** 2
+            X[:, 2] = input_x
+            Y = np.array([y for x, y in lane])
+            W = np.matmul(np.linalg.pinv(np.matmul(X.T, X)), np.matmul(X.T, Y))
+            # First four represent the weights
+            fit_truth[index][0:4] = W
+            # Second to last represent the x_start
+            fit_truth[index][4] = max(0, min(input_x))
+            # last represents the last
+            fit_truth[index][5] = min(1, max(input_x))
+        return {'path': annotation['path'], 'lanes': fit_truth}
 
-        Returns:
-            np.ndarray: Image with visualized annotations and predictions.
-            int: False positives.
-            int: False negatives.
-        """
-        # Get image if not provided
-        if img is None:
-            # print(self.annotations[idx]['path'])
-            img, _, _ = self.__getitem__(idx)
-            if label is None:
-                img, label, _ = self[idx]
-            label = self.label_to_lanes(label)
-            img = img.permute(1, 2, 0).numpy()
-            if self.normalize:
-                img = img * np.array(IMAGENET_STD) + np.array(IMAGENET_MEAN)
-            img = (img * 255).astype(np.uint8)
-        else:
-            if label is None:
-                _, label, _ = self.__getitem__(idx)
-            label = self.label_to_lanes(label)
-        img = cv2.resize(img, (self.img_w, self.img_h))
-
-        img_h, _, _ = img.shape
-        # Pad image to visualize extrapolated predictions
-        pad = 0
-        if pad > 0:
-            img_pad = np.zeros((self.img_h + 2 * pad, self.img_w + 2 * pad, 3), dtype=np.uint8)
-            img_pad[pad:-pad, pad:-pad, :] = img
-            img = img_pad
-        data = [(None, None, label)]
-        if pred is not None:
-            fp, fn, matches, accs = self.dataset.get_metrics(pred, idx)
-            assert len(matches) == len(pred)
-            data.append((matches, accs, pred))
-        else:
-            fp = fn = None
-        for matches, accs, datum in data:
-            for i, l in enumerate(datum):
-                if matches is None:
-                    color = GT_COLOR
-                elif matches[i]:
-                    color = PRED_HIT_COLOR
-                else:
-                    color = PRED_MISS_COLOR
-                start_point = l[0]
-                end_point = l[1]
-                img = cv2.line(img, start_point, end_point,
-                               color=color,
-                               thickness=3 if matches is None else 3)
-        return img, fp, fn
-
-    def create_mask(self, lanes):
-        mask = np.zeros((self.img_h, self.img_w, 3))
-
-        y, x = np.where(lanes[:, :, 2] >= 0.5)
-
-        length = lanes[y, x, 0]
-        angle = lanes[y, x, 1]
-
-        x1 = (x / lanes.shape[1] * mask.shape[1]).astype(int)
-        y1 = (y / lanes.shape[0] * mask.shape[0]).astype(int)
-
-        x2 = ((x / lanes.shape[1] + np.cos(angle) * length) * mask.shape[1]).astype(int)
-        y2 = ((y / lanes.shape[0] + np.sin(angle) * length) * mask.shape[0]).astype(int)
-
-        temp = np.column_stack((x1, y1, x2, y2))
-
-        for x1, y1, x2, y2 in temp:
-            cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
-        return mask[:, :, 0].astype(np.float32)
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
-        # For some reason cv2 resize wants to have width and then height
-        original_shape = (img.shape[1], img.shape[0])
+        mask = self.dataset.create_mask(item['old_lanes'])
 
         # Resize image
         # img = cv2.resize(img, (self.img_w, self.img_h))
@@ -328,12 +282,14 @@ class LaneDataset(Dataset):
         video_path = item['path'].split('/')[-2]
         if video_path in self.resizing_coordinates:
             y, x = self.resizing_coordinates[video_path]
-            img = img[y:y+self.img_h, x:x+self.img_w]
+            img = img[y:y + self.img_h, x:x + self.img_w]
+            mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:
             y = np.random.randint(0, img.shape[0] - self.img_h)
             x = np.random.randint(0, img.shape[1] - self.img_w)
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
+            mask = mask[y:y + self.img_h, x:x + self.img_w]
 
         # Standardize image
         img = img / 255
@@ -341,13 +297,12 @@ class LaneDataset(Dataset):
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
-        if not self.load_formatted:
+        if self.dataset.save_formatted and not self.dataset.load_formatted:
             transformed = self.transform_annotation(item)['lanes']
-            # mask = self.create_mask(transformed)
-            mask = cv2.resize(self.create_mask(transformed), original_shape)[y:y+self.img_h, x:x + self.img_w]
             return img, transformed, mask, idx
-        # mask = self.create_mask(item['lanes'])
-        mask = cv2.resize(self.create_mask(item['lanes']), original_shape)[y:y + self.img_h, x:x + self.img_w]
+        if self.dataset.save_fit and not self.dataset.load_fit:
+            fit = self.fit_annotation(item)['lanes']
+            return img, fit, mask, idx
         return img, item['lanes'], mask, idx
 
     def __len__(self):

@@ -1,7 +1,7 @@
 import gc
 
 import torch
-from culane.lane_dataset import LaneDataset
+from culane.lane_dataset import LaneDataset, IMAGENET_MEAN, IMAGENET_STD
 from torch.utils.data import DataLoader
 import random
 import numpy as np
@@ -18,13 +18,18 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30, load_formatted=False, load_fit=False, save_fit=False, save_formatted=False):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False)
+    dataset = LaneDataset(split=split, root=root, save_fit=save_fit, save_formatted=save_formatted, load_formatted=load_formatted, load_fit=load_fit, subset=subset, normalize=True)
+    batch_sampler = np.arange(0, len(dataset))
+    batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
+                                                  (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
+                           mode='constant', constant_values=0)
+    batch_sampler = batch_sampler.reshape((len(dataset) // batch_size + 1, batch_size))
+    np.random.shuffle(batch_sampler)
     loader = DataLoader(dataset=dataset,
-                              batch_size=batch_size,
-                              shuffle=False,  # Should shuffle the batches for each epoch
-                              worker_init_fn=_worker_init_fn_)
+                        batch_sampler=batch_sampler,
+                        worker_init_fn=_worker_init_fn_)
     return loader
 
 
@@ -40,54 +45,86 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    train_loader = get_dataloader('train', batch_size=10, subset=30)
-    num_epochs = 10
-    pbar = tqdm(train_loader)
-    backbone = Backbone('resnet34')
-    backbone.to(device)
-    model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
+    batch_size = 8
+    root = './culane/data/'
+    dataset = LaneDataset(split='val', root=root, load_formatted=False, load_fit=False, save_fit=True, subset=10,
+                          normalize=True)
+    batch_sampler = np.arange(0, len(dataset))
+    batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
+                                                  (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
+                           mode='constant', constant_values=0)
+    batch_sampler = batch_sampler.reshape((len(dataset) // batch_size + 1, batch_size))
+    np.random.shuffle(batch_sampler)
+    loader = DataLoader(dataset=dataset,
+                        batch_sampler=batch_sampler,
+                        worker_init_fn=_worker_init_fn_)
+    pbar = tqdm(loader)
+    # backbone = Backbone('resnet34')
+    # backbone.to(device)
+    model = torch.load('./models/checkpoints/vitt/model_1697210721_vitt_0.model')
     model.to(device)
-    for i, (images, lanes, masks, _) in enumerate(pbar):
-        # What we're doing here: the original tensor is likely in the format (channels, height, width)
-        # commonly used in PyTorch. However, many image processing libraries expect the channels to be
-        # the last dimension, i.e., (height, width, channels).
-        # .permute(1, 2, 0) swaps the dimensions so that the channels dimension becomes the last one.
-        # This is done to match the channel order expected by most image display functions.
-        # batch_size = images.shape[0]
-        # for j, _ in enumerate(images):
-        #     # Need to multiply the batch_size with the index to get the actual correct frame
-        #     label_img, _, _ = train_loader.dataset.draw_annotation(batch_size * i + j)
-        #     cv2.imshow('img', label_img)
-        #     cv2.waitKey(500)
-        # cv2.waitKey(0)
-
-        # RUNNING TRAINED MODEL PREDICTIONS
+    last = None
+    sample_size = 100
+    truth_color = (1,0,0)
+    pred_color = (0,1,0)
+    for i, (images, lanes, masks, idx) in enumerate(pbar):
         images = images.to(device)
         with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments)
-        labels = labels.cpu()
-        
-        del batch_of_segments
-        gc.collect()
-        torch.cuda.empty_cache()
-        batch_size = images.shape[0]
-        for j, img in enumerate(images):
-            # Need to multiply the batch_size with the index to get the actual correct frame
-            # img = np.swapaxes(img, axis1=0, axis2=1)
-            # img = np.swapaxes(img, axis1=1, axis2=2)
-            # labels_mean = torch.mean(labels[j], dim=0)
-            # labels_stddev = torch.std(labels[j], dim=0)
-            # print(labels_mean)
-            # print(labels_stddev)
-            # print(labels)
-            y, x = np.where(labels[j] >= 0.3)
-            # print('x = ', x, 'y = ', y)
-            img = img.cpu().numpy()
-            img[0, y, x] = labels[j, y, x]
-            img[1, y, x] = 1
-            img[2, y, x] = 1
-            img = np.transpose(img, axes=[1, 2, 0])
+            predictions = model(images)
+        for j in range(len(images)):
+            img = images[j].cpu().numpy()
+            img = np.transpose(img, [1, 2, 0])
+            img = img * IMAGENET_STD + IMAGENET_MEAN
+            lane = predictions[j].cpu().numpy()
+            for k in range(len(lane)):
+                x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
+                y = np.array(
+                    list(map(lambda x: lane[k][0] * x ** 3 + lane[k][1] * x ** 2 + lane[k][2] * x + lane[k][3], x)))
+                # Set back to image coordinates
+                x = x * len(img[0])
+                y = y * len(img)
+
+                for p in range(1, sample_size):
+                    if x[p-1] < 0 or x[p-1] >= len(img[0]) or y[p-1] < 0 or y[p-1] >= len(img):
+                        continue
+                    img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])), color=pred_color, thickness=3)
+            lane = lanes[j].cpu().numpy()
+            for k in range(len(lane)):
+                x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
+                y = np.array(
+                    list(map(lambda x: lane[k][0] * x ** 3 + lane[k][1] * x ** 2 + lane[k][2] * x + lane[k][3], x)))
+                # Set back to image coordinates
+                x = x * len(img[0])
+                y = y * len(img)
+
+                for p in range(1, sample_size):
+                    if x[p - 1] < 0 or x[p - 1] >= len(img[0]) or y[p - 1] < 0 or y[p - 1] >= len(img):
+                        continue
+                    img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])), color=truth_color,
+                                   thickness=3)
             cv2.imshow('img', img)
             cv2.waitKey(50)
+
+        # RUNNING TRAINED MODEL PREDICTIONS
+        # images = images.to(device)
+        # masks = masks.to(device)
+        # with torch.no_grad():
+        #     # batch_of_segments = backbone(images)
+        #     labels = model(images)
+        # labels = labels.cpu()
+        # if last is None:
+        #     last = labels
+        # else:
+        #     print((last - labels).max())
+        #
+        # batch_size = images.shape[0]
+        # for j, img in enumerate(images):
+        #     y, x = np.where(labels[j] >= 0.5)
+        #     img = img.cpu().numpy()
+        #     img[0, y, x] = labels[j, y, x]
+        #     img[1, y, x] = 1
+        #     img[2, y, x] = 1
+        #     img = np.transpose(img, axes=[1, 2, 0])
+        #     cv2.imshow('img', img)
+        #     cv2.waitKey(50)
         # cv2.waitKey(0)

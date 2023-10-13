@@ -50,6 +50,8 @@ def compute_iou(prediction, target):
         return 1
     return np.sum(intersection) / np.sum(union)
 
+def iou(predictions, targets):
+    return (predictions * targets + 1e-5).sum() / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum()
 
 def show_culane_statistics(models, show=False, save=True, root='./', batch_size=32, device=torch.device,
                            filename='results.csv'):
@@ -77,21 +79,21 @@ def show_culane_statistics(models, show=False, save=True, root='./', batch_size=
         for key, dataloader in dataloaders.items():
             bar.set_description(f"[EVALUATION] CURRENT CATEGORY: {key} | ")
             all_iou = []
-            for batch, targets, _ in dataloader:
+            for batch, targets, mask, _ in dataloader:
                 # Load data into GPU
                 batch = batch.to(device)
                 targets = targets.to(device)
                 # make predictions
                 with torch.no_grad():
                     batch_of_segments = backbone(batch)
-                    predictions = model(batch_of_segments)
+                    predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
                 # Clean memory
                 del batch, batch_of_segments
                 gc.collect()
                 torch.cuda.empty_cache()
                 # Compute IOU
                 for frame_num in range(predictions.shape[0]):
-                    all_iou.append(compute_iou(predictions[frame_num], targets[frame_num]))
+                    all_iou.append(iou(predictions[frame_num], targets[frame_num]))
                 bar.update(1)
                 # Clean memory
                 del predictions, targets
@@ -118,9 +120,9 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
     models = [
-        {'path': './models/checkpoints/model_1696698303_0.model', 'name': 'mask_predictor',
-         'backbone': 'resnet18'}
+        {'path': './models/checkpoints/mask/model_1696782274_0.model', 'name': 'mask_predictor',
+         'backbone': 'resnet34'}
     ]
     root = './results/'
     os.makedirs(root, exist_ok=True)
-    show_culane_statistics(models, show=True, save=True, root=root, batch_size=30, device=device)
+    show_culane_statistics(models, show=True, save=True, root=root, batch_size=8, device=device)

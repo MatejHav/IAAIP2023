@@ -23,8 +23,8 @@ class Backbone(nn.Module):
         self.model = nn.Sequential(*list(get_model(model_name).children())[:-2])
         #
         # # Freeze training of the backbone
-        # for param in self.model.parameters():
-        #     param.requires_grad = False
+        for param in self.model.parameters():
+            param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

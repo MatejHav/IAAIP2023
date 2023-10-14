@@ -44,7 +44,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), lr=0.005)
+        optimizer = AdamW(model.parameters(), lr=0.005, weight_decay=1e-8)
         loss_function = iou
         losses = {
             'train': [],
@@ -57,6 +57,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             total_loss_train = 0
             for batch, targets, masks, _ in progress_bar_train:
+                optimizer.zero_grad()
                 if models[model_name]['use_masks']:
                     targets = masks
                 # Load batch into memory
@@ -67,21 +68,14 @@ def training_loop(num_epochs, dataloaders, models, device):
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
                 # predictions = model(batch_of_segments)
-                predictions = model(batch_of_segments, targets)
-                del batch, batch_of_segments
-                gc.collect()
-                torch.cuda.empty_cache()
+                predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
                 # Compute loss
                 loss = loss_function(predictions, targets)
-                optimizer.zero_grad()
                 loss.backward()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)} |")
                 losses['train'].append(loss.item())
-                del targets, predictions, loss
-                gc.collect()
-                torch.cuda.empty_cache()
                 # Learn
                 optimizer.step()
 
@@ -100,19 +94,10 @@ def training_loop(num_epochs, dataloaders, models, device):
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
                     # predictions = model(batch_of_segments)
-                    predictions = model(batch_of_segments, targets)
-                    del batch, batch_of_segments
-                    gc.collect()
-                    torch.cuda.empty_cache()
+                    predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
                     loss = loss_function(predictions, targets)
-                    del targets, predictions
-                    gc.collect()
-                    torch.cuda.empty_cache()
                     total_loss_val += torch.mean(loss).item()
                     losses['val'].append(loss.item())
-                    del loss
-                    gc.collect()
-                    torch.cuda.empty_cache()
             total_loss_val /= len(progress_bar_val)
             print(
                 f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
@@ -137,18 +122,9 @@ def training_loop(num_epochs, dataloaders, models, device):
             with torch.no_grad():
                 batch_of_segments = backbone(batch).to(device)
                 # predictions = model(batch_of_segments)
-                predictions = model(batch_of_segments, targets)
-                del batch, batch_of_segments
-                gc.collect()
-                torch.cuda.empty_cache()
+                predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
                 loss = loss_function(predictions, targets)
-                del targets, predictions
-                gc.collect()
-                torch.cuda.empty_cache()
                 total_loss_test += torch.mean(loss).item()
-                del loss
-                gc.collect()
-                torch.cuda.empty_cache()
         total_loss_test /= len(progress_bar_test)
         print(f"[RESULTS] TOTAL TEST LOSS: {round(total_loss_test, 3)}")
 

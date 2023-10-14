@@ -1,0 +1,68 @@
+certifi @ file:///croot/certifi_1690232220950/work/certifi
+charset-normalizer==3.2.0
+click @ file:///work/ci_py311/click_1676825163161/work
+cloudpickle @ file:///croot/cloudpickle_1683040006038/work
+cmake==3.27.5
+contourpy @ file:///work/ci_py311/contourpy_1676827066340/work
+cycler @ file:///tmp/build/80754af9/cycler_1637851556182/work
+cytoolz @ file:///work/ci_py311/cytoolz_1676830405847/work
+dask @ file:///croot/dask-core_1686782904390/work
+dill @ file:///croot/dill_1692271232022/work
+filelock==3.12.4
+fonttools==4.25.0
+fsspec @ file:///croot/fsspec_1695734500336/work
+idna==3.4
+imagecodecs @ file:///croot/imagecodecs_1695064943445/work
+imageio @ file:///croot/imageio_1687264943895/work
+imgaug @ file:///tmp/build/80754af9/imgaug_1605226543559/work
+importlib-metadata @ file:///croot/importlib-metadata_1678997070253/work
+Jinja2==3.1.2
+kiwisolver @ file:///work/ci_py311/kiwisolver_1676827230232/work
+lazy_loader @ file:///croot/lazy_loader_1687264084094/work
+lit==17.0.1
+locket @ file:///work/ci_py311/locket_1676827274546/work
+MarkupSafe==2.1.3
+matplotlib @ file:///croot/matplotlib-suite_1693812469450/work
+mpmath==1.3.0
+multiprocess @ file:///croot/multiprocess_1692294385131/work
+munkres==1.1.4
+networkx @ file:///croot/networkx_1690561992265/work
+numpy @ file:///croot/numpy_and_numpy_base_1691091611330/work
+nvidia-cublas-cu11==11.10.3.66
+nvidia-cuda-cupti-cu11==11.7.101
+nvidia-cuda-nvrtc-cu11==11.7.99
+nvidia-cuda-runtime-cu11==11.7.99
+nvidia-cudnn-cu11==8.5.0.96
+nvidia-cufft-cu11==10.9.0.58
+nvidia-curand-cu11==10.2.10.91
+nvidia-cusolver-cu11==11.4.0.1
+nvidia-cusparse-cu11==11.7.4.91
+nvidia-nccl-cu11==2.14.3
+nvidia-nvtx-cu11==11.7.91
+p-tqdm @ file:///home/conda/feedstock_root/build_artifacts/p-tqdm_1661640573168/work
+packaging @ file:///croot/packaging_1693575174725/work
+partd @ file:///croot/partd_1693937863478/work
+pathos @ file:///croot/pathos_1692343065162/work
+Pillow @ file:///croot/pillow_1695134008276/work
+pox @ file:///croot/pox_1692111202272/work
+ppft @ file:///croot/ppft_1692111205534/work
+pyparsing @ file:///work/ci_py311/pyparsing_1677811559502/work
+python-dateutil @ file:///tmp/build/80754af9/python-dateutil_1626374649649/work
+PyWavelets @ file:///work/ci_py311/pywavelets_1676838693522/work
+PyYAML @ file:///work/ci_py311/pyyaml_1676827445582/work
+requests==2.31.0
+scikit-image @ file:///croot/scikit-image_1682528309703/work
+scipy @ file:///croot/scipy_1691606680890/work/dist/scipy-1.11.1-cp311-cp311-linux_x86_64.whl#sha256=7c20d23747f75d6442c463d27ec9933a99e1e3c0c35e6ac4b25b210de87a7538
+shapely @ file:///croot/shapely_1680636282912/work
+six @ file:///tmp/build/80754af9/six_1644875935023/work
+sympy==1.12
+tifffile @ file:///croot/tifffile_1695107451082/work
+toolz @ file:///work/ci_py311/toolz_1676827522705/work
+torch==2.0.1
+torchaudio==2.0.2
+torchvision==0.15.2
+tqdm @ file:///croot/tqdm_1679561862951/work
+triton==2.0.0
+typing_extensions==4.8.0
+urllib3==2.0.5
+zipp @ file:///work/ci_py311/zipp_1676822894295/work

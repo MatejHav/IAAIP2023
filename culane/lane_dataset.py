@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import imgaug.augmenters as iaa
 from imgaug.augmenters import Resize
+from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataset import Dataset
 
@@ -16,6 +17,17 @@ GROUND_TRUTH_GRID = (64, 160)
 
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
+
+
+def horizontal_flip_adjust_ground_truth(img, item):
+    """
+    Shifts the points of the ground truth to correspond to the image after a horizontal flip is performed.
+    """
+    lanes = item['lanes']
+    for lane in lanes:
+        for i in range(len(lane)):
+            lane[i] = (img.shape[1] - lane[i][0], lane[i][1])
+
 
 class LaneDataset(Dataset):
     """
@@ -115,19 +127,21 @@ class LaneDataset(Dataset):
 
         if augmentations is not None:
             # add augmentations
-            augmentations = [getattr(iaa, aug['name'])(**aug['parameters'])
+            self.augmentations = [getattr(iaa, aug['name'])(**aug['parameters'])
                              for aug in augmentations]  # add augmentation
         else:
-            augmentations = []
+            self.augmentations = []
 
         transformations = iaa.Sequential([Resize({'height': self.img_h, 'width': self.img_w})])
         self.to_tensor = ToTensor()
-        self.transform = iaa.Sequential([iaa.Sometimes(then_list=augmentations, p=aug_chance), transformations])
+        self.transform = iaa.Sequential([iaa.Sometimes(then_list=self.augmentations, p=aug_chance), transformations])
         self.resizing_coordinates = {}
 
     @property
     def annotations(self):
         return self.dataset.annotations
+
+
 
     def transform_annotations(self):
         """
@@ -207,7 +221,6 @@ class LaneDataset(Dataset):
                 lanes[y_bin, x_bin, 1] = angle
                 # Probability of ground truth is always 1
                 lanes[y_bin, x_bin, 2] = 1
-
         return {'path': anno['path'], 'lanes': lanes}
 
     def label_to_lanes(self, label):
@@ -313,6 +326,7 @@ class LaneDataset(Dataset):
 
         for x1, y1, x2, y2 in temp:
             cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
+
         return mask[:, :, 0].astype(np.float32)
 
     def __getitem__(self, idx):
@@ -320,6 +334,12 @@ class LaneDataset(Dataset):
         img = cv2.imread(item['path'])
         # For some reason cv2 resize wants to have width and then height
         original_shape = (img.shape[1], img.shape[0])
+
+        #Iterate through the augmentations and adjust the ground truth per operation
+        for aug in self.augmentations:
+            img = aug.augment_image(img)
+            if iaa.flip.Fliplr == type(aug):
+                horizontal_flip_adjust_ground_truth(img, item)
 
         # Resize image
         # img = cv2.resize(img, (self.img_w, self.img_h))
@@ -343,10 +363,8 @@ class LaneDataset(Dataset):
         img = self.to_tensor(img.astype(np.float32))
         if not self.load_formatted:
             transformed = self.transform_annotation(item)['lanes']
-            # mask = self.create_mask(transformed)
             mask = cv2.resize(self.create_mask(transformed), original_shape)[y:y+self.img_h, x:x + self.img_w]
             return img, transformed, mask, idx
-        # mask = self.create_mask(item['lanes'])
         mask = cv2.resize(self.create_mask(item['lanes']), original_shape)[y:y + self.img_h, x:x + self.img_w]
         return img, item['lanes'], mask, idx
 

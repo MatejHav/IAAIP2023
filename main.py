@@ -1,6 +1,9 @@
 import gc
 
 import torch
+from torchvision.utils import draw_segmentation_masks
+import matplotlib.pyplot as plt
+
 from culane.lane_dataset import LaneDataset
 from torch.utils.data import DataLoader
 import random
@@ -20,7 +23,10 @@ def _worker_init_fn_(_):
 
 def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False)
+    augmentations = [
+        {'name': 'HorizontalFlip', 'parameters': {'p': 0.5}}
+    ]
+    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False, augmentations=augmentations)
     loader = DataLoader(dataset=dataset,
                               batch_size=batch_size,
                               shuffle=False,  # Should shuffle the batches for each epoch
@@ -29,6 +35,33 @@ def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
 
 
 idx = 0
+
+
+def print_mask_on_image(img, mask):
+    """
+    Overlays an image from dataset.getitem() and its mask generated from the groundtruth. Used for testing purposes.
+    """
+    image_np = img.numpy()
+
+    # Scale the values to the range [0, 255]
+    image_np_scaled = image_np * 255.0
+
+    # Clip the values to ensure they are within the valid range
+    image_np_clipped = np.clip(image_np_scaled, 0, 255)
+
+    # Convert the numpy array to the uint8 data type
+    image_uint8 = torch.tensor(image_np_clipped.astype(np.uint8))
+
+    binary_mask = np.where(mask > 0.5, 1, 0).astype(bool)
+    masks = torch.tensor(np.expand_dims(binary_mask, axis=0), dtype=torch.bool)
+    overlayed_image = draw_segmentation_masks(image_uint8, masks)
+    img_to_print = overlayed_image.numpy()
+    img_to_print = np.transpose(img_to_print, (1, 2, 0))
+
+    plt.imshow(img_to_print)
+    plt.axis('off')
+    plt.show()
+
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -67,7 +100,7 @@ if __name__ == '__main__':
             batch_of_segments = backbone(images)
             labels = model(batch_of_segments)
         labels = labels.cpu()
-        
+
         del batch_of_segments
         gc.collect()
         torch.cuda.empty_cache()

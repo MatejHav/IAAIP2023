@@ -25,7 +25,7 @@ class ResNet34Backbone(nn.Module):
         self.resnet34 = models.resnet34(pretrained=True)
         
         # Remove the fully connected layer (classifier) at the end
-        self.features = nn.Sequential(*list(self.resnet34.children())[:-2])
+        self.features = nn.Sequential(*list(self.resnet34.children())[:-1])
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Forward pass through the ResNet-34 backbone
@@ -39,7 +39,7 @@ class ResNet50Backbone(nn.Module):
         self.resnet50 = models.resnet50(pretrained=True)
         
         # Remove the fully connected layer (classifier) at the end
-        self.features = nn.Sequential(*list(self.resnet50.children())[:-2])
+        self.features = nn.Sequential(*list(self.resnet50.children())[:-1])
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Forward pass through the ResNet-50 backbone

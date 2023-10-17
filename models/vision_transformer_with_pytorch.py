@@ -6,7 +6,7 @@ class ViTAutoencoder(nn.Module):
     def __init__(self, image_size=576, hidden_dim=200):
         super(ViTAutoencoder, self).__init__()
 
-        # Encoder: ViT without the head
+        # Encoder: ViT without the head. Using PyTorch's out-of-the-box implementation (which HEAVILY lacks documentation...)
         self.vit = vits.VisionTransformer(
             image_size=image_size,
             patch_size=16,
@@ -27,6 +27,16 @@ class ViTAutoencoder(nn.Module):
             nn.Linear(hidden_dim * 2, image_size * image_size * 3),  # Assuming 3 channels (RGB)
             nn.Sigmoid()  # Ensuring output values are between [0, 1]
         )
+
+        # check if model is in eval mode, then load the decoder checkpoint. 
+        if self.eval:
+            self.vit = torch.load('./models/checkpoints/mask/encoder.model', map_location=torch.device('cpu'))
+
+            print(f"LOADING MODEL FROM CHECKPOINT IN TEST MODE")
+
+            # freeze weights
+            for param in self.vit.parameters():
+                param.requires_grad = False
         
     def forward(self, x):
         # Encoding

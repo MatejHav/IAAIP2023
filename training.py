@@ -5,7 +5,7 @@ import gc
 import json
 import numpy as np
 
-from torch.optim import AdamW
+from torch.optim import Adam
 from tqdm.auto import tqdm
 from main import get_dataloader
 from models.model_collection import *
@@ -23,10 +23,10 @@ def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tens
     """
     selection_empty = targets[:, :, :, 2] <= 0.5
     should_be_empty = (predictions[selection_empty] - targets[selection_empty]) ** 2 / torch.sum(selection_empty)
-    temp = 0.75 * should_be_empty.sum()
+    temp = 0.5 * should_be_empty.sum()
     selection_lane = targets[:, :, :, 2] > 0.5
     should_be_lane = (predictions[selection_lane] - targets[selection_lane]) ** 2 / torch.sum(selection_lane)
-    return temp + 0.25 * should_be_lane.sum()
+    return temp + 0.5 * should_be_lane.sum()
 
 
 def iou(predictions, targets):
@@ -37,6 +37,7 @@ def iou(predictions, targets):
     :param targets: binary segmentation mask of the ground truth
     :return: average IoU ove the elements in the batch
     """
+    # Use CE
     return (1 - (predictions * targets).sum(dim=[1, 2]) / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum(
         dim=[1, 2])).mean()
 
@@ -51,17 +52,17 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=1e-8, lr=1e-5)
-        loss_function = torch.nn.MSELoss()
-        if models[model_name]['use_masks']:
-            loss_function = iou
+        optimizer = Adam(model.parameters(), weight_decay=0, lr=0.01)
+        loss_function = lambda pred, tar: 0.5 * torch.nn.BCELoss()(pred[tar >= 0.5], tar[tar >= 0.5]) + 0.5 * torch.nn.BCELoss()(pred[tar < 0.5], tar[tar < 0.5]) if 1 in (tar >= 0.5) else torch.nn.BCELoss()(pred, tar)
+        # if models[model_name]['use_masks']:
+        #     loss_function = iou
         losses = {
             'train': [],
             'val': []
         }
         for epoch in range(num_epochs):
             # Train the model
-            model.train()
+            model.train(True)
             # Setup progress bars
             dataloader = dataloaders['train'][0](*dataloaders['train'][1])
             progress_bar_train = tqdm(dataloader)
@@ -69,6 +70,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             # Store the total loss
             total_loss_train = 0
             for batch, targets, masks, _ in progress_bar_train:
+                optimizer.zero_grad()
                 # If masks are the targets, update the ground truth
                 if models[model_name]['use_masks']:
                     targets = masks
@@ -82,16 +84,17 @@ def training_loop(num_epochs, dataloaders, models, device):
                 predictions = model(batch_of_segments)
                 # Compute loss
                 loss = loss_function(predictions, targets)
-                optimizer.zero_grad()
                 loss.backward()
+                # Learn
+                optimizer.step()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
                 losses['train'].append(loss.item())
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)} |"
                                                    f" WORST LOSS: {round(np.max(losses['train']), 3)} |"
+                                                   f" MEDIAN LOSS: {round(np.median(losses['train']), 3)} |"
                                                    f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-20):]), 3)} |")
-                # Learn
-                optimizer.step()
+
 
             total_loss_train /= len(progress_bar_train)
 
@@ -116,7 +119,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             print(
                 f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
             path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{epoch}.model")
-            torch.save(model, path)
+            torch.save(model.state_dict(), path)
             os.makedirs(os.path.join(models[model_name]['path'], 'stats'), exist_ok=True)
             with open(os.path.join(models[model_name]['path'], 'stats', f"model_{saved_time}_{model_name}_{epoch}.json"),
                       'w') as file:
@@ -156,15 +159,15 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 15
-    batch_size = 60
+    num_epochs = 20
+    batch_size = 15
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 10, False, False, True)),
+        'train': (get_dataloader, ('train', batch_size, 100, False, False, True)),
         'val': (get_dataloader, ('val', batch_size, 100, False, False, True)),
         'test': (get_dataloader, ('test', batch_size, 100, False, False, True))
     }
     models = {
-        "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/", "use_masks": False}
+        "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/", "use_masks": True}
     }
 
     training_loop(num_epochs, culane_dataloader, models, device)

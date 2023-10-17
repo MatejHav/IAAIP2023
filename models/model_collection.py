@@ -1,4 +1,5 @@
 import torch.nn
+import torchvision.transforms
 
 from models.backbone.backbone import Backbone
 from models.positional_encoder.positional_encoder import PositionalEncoder
@@ -26,6 +27,8 @@ def get_mask_model(device):
 
 
 def get_vitt(device):
-    vitt = ViTT(d_model=4*6, out_dim=(4, 6), nhead=4, device=device)
+    vitt = ViTT(d_model=200, out_dim=(320, 800), nhead=5, device=device)
     vitt.to(device)
-    return torch.nn.Sequential(), vitt
+    transforms = torchvision.transforms.Resize(size=(576, 576))
+    backbone = torch.nn.Sequential(transforms, torch.load('./models/backbone/encoder.model'))
+    return backbone, vitt

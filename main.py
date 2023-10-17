@@ -8,7 +8,6 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 
-from models.backbone.backbone import Backbone
 
 
 def _worker_init_fn_(_):
@@ -45,9 +44,9 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    batch_size = 8
+    batch_size = 15
     root = './culane/data/'
-    dataset = LaneDataset(split='val', root=root, load_formatted=False, load_fit=False, save_fit=True, subset=10,
+    dataset = LaneDataset(split='train', root=root, load_formatted=False, load_fit=False, save_fit=True, subset=10,
                           normalize=True)
     batch_sampler = np.arange(0, len(dataset))
     batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
@@ -61,70 +60,83 @@ if __name__ == '__main__':
     pbar = tqdm(loader)
     # backbone = Backbone('resnet34')
     # backbone.to(device)
-    model = torch.load('./models/checkpoints/vitt/model_1697210721_vitt_0.model')
+    from models.model_collection import get_vitt
+    backbone, model = get_vitt(device)
+    state_dict = torch.load('./models/checkpoints/vitt/model_1697541206_vitt_0.model')
+    model.load_state_dict(state_dict)
     model.to(device)
     last = None
     sample_size = 100
-    truth_color = (1,0,0)
-    pred_color = (0,1,0)
+    truth_color = [(1,0,0), (1,0.3,0), (1,0.6,0), (1,1,0)]
+    pred_color = [(0,0,1), (0,0.3,1), (0,0.6,1), (0,1,1)]
     for i, (images, lanes, masks, idx) in enumerate(pbar):
-        images = images.to(device)
-        with torch.no_grad():
-            predictions = model(images)
-        for j in range(len(images)):
-            img = images[j].cpu().numpy()
-            img = np.transpose(img, [1, 2, 0])
-            img = img * IMAGENET_STD + IMAGENET_MEAN
-            lane = predictions[j].cpu().numpy()
-            for k in range(len(lane)):
-                x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
-                y = np.array(
-                    list(map(lambda x: lane[k][0] * x ** 3 + lane[k][1] * x ** 2 + lane[k][2] * x + lane[k][3], x)))
-                # Set back to image coordinates
-                x = x * len(img[0])
-                y = y * len(img)
-
-                for p in range(1, sample_size):
-                    if x[p-1] < 0 or x[p-1] >= len(img[0]) or y[p-1] < 0 or y[p-1] >= len(img):
-                        continue
-                    img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])), color=pred_color, thickness=3)
-            lane = lanes[j].cpu().numpy()
-            for k in range(len(lane)):
-                x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
-                y = np.array(
-                    list(map(lambda x: lane[k][0] * x ** 3 + lane[k][1] * x ** 2 + lane[k][2] * x + lane[k][3], x)))
-                # Set back to image coordinates
-                x = x * len(img[0])
-                y = y * len(img)
-
-                for p in range(1, sample_size):
-                    if x[p - 1] < 0 or x[p - 1] >= len(img[0]) or y[p - 1] < 0 or y[p - 1] >= len(img):
-                        continue
-                    img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])), color=truth_color,
-                                   thickness=3)
-            cv2.imshow('img', img)
-            cv2.waitKey(50)
-
-        # RUNNING TRAINED MODEL PREDICTIONS
         # images = images.to(device)
-        # masks = masks.to(device)
         # with torch.no_grad():
-        #     # batch_of_segments = backbone(images)
-        #     labels = model(images)
-        # labels = labels.cpu()
-        # if last is None:
-        #     last = labels
-        # else:
-        #     print((last - labels).max())
+        #     predictions = model(images)
+        # print((lanes - predictions.cpu()).mean(dim=0), torch.nn.MSELoss()(predictions.cpu(), lanes))
+        # for j in range(len(images)):
+        #     img = images[j].cpu().numpy()
+        #     img = np.transpose(img, [1, 2, 0])
+        #     img = img * IMAGENET_STD + IMAGENET_MEAN
         #
-        # batch_size = images.shape[0]
-        # for j, img in enumerate(images):
-        #     y, x = np.where(labels[j] >= 0.5)
-        #     img = img.cpu().numpy()
-        #     img[0, y, x] = labels[j, y, x]
-        #     img[1, y, x] = 1
-        #     img[2, y, x] = 1
-        #     img = np.transpose(img, axes=[1, 2, 0])
+        #     lane = lanes[j].cpu().numpy()
+        #     for k in range(len(lane)):
+        #         x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
+        #         y = np.array(
+        #             list(map(lambda x: lane[k][0] * x ** 2 + lane[k][1] * x + lane[k][2], x)))
+        #         # Set back to image coordinates
+        #         x = x * len(img[0])
+        #         y = y * len(img)
+        #
+        #         for p in range(1, sample_size):
+        #             if x[p - 1] < 0 or x[p - 1] >= len(img[0]) or y[p - 1] < 0 or y[p - 1] >= len(img):
+        #                 continue
+        #             img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])),
+        #                            color=truth_color[k],
+        #                            thickness=3)
+        #
+        #     lane = predictions[j].cpu().numpy()
+        #     for k in range(len(lane)):
+        #         x = np.linspace(lane[k][-2], lane[k][-1], sample_size)
+        #         y = np.array(
+        #             list(map(lambda x: lane[k][0] * x ** 2 + lane[k][1] * x + lane[k][2], x)))
+        #         # Set back to image coordinates
+        #         x = x * len(img[0])
+        #         y = y * len(img)
+        #
+        #         for p in range(1, sample_size):
+        #             if x[p-1] < 0 or x[p-1] >= len(img[0]) or y[p-1] < 0 or y[p-1] >= len(img):
+        #                 continue
+        #             img = cv2.line(img.copy(), (int(x[p - 1]), int(y[p - 1])), (int(x[p]), int(y[p])), color=pred_color[k], thickness=3)
         #     cv2.imshow('img', img)
         #     cv2.waitKey(50)
-        # cv2.waitKey(0)
+
+        # RUNNING TRAINED MODEL PREDICTIONS
+        images = images.to(device)
+        masks = masks.to(device)
+        with torch.no_grad():
+            batch_of_segments = backbone(images)
+            labels = model(batch_of_segments)
+        labels = labels.cpu()
+        masks = masks.cpu()
+        if last is None:
+            last = labels
+        else:
+            print((last - labels).std())
+            last = labels
+
+        batch_size = images.shape[0]
+        for j, img in enumerate(images):
+            y, x = np.where(labels[j] >= 0.5)
+            y_gt, x_gt = np.where(masks[j] >= 0.5)
+            img = img.cpu().numpy()
+            img = np.transpose(img, axes=[1, 2, 0])
+            img = img * IMAGENET_STD + IMAGENET_MEAN
+            img[y, x, 0] = labels[j, y, x]
+            img[y, x, 1] = 0
+            img[y, x, 2] = 0
+            img[y_gt, x_gt, 0] = 0
+            img[y_gt, x_gt, 1] = 1
+            img[y_gt, x_gt, 2] = 0
+            cv2.imshow('img', img)
+            cv2.waitKey(50)

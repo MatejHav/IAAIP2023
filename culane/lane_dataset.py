@@ -234,10 +234,10 @@ class LaneDataset(Dataset):
                     lanes.append(temp)
         return lanes
 
-    def fit_annotation(self, annotation):
-        # Lane is defined by f(x): w0*x^3 + w1*x^2 + w2*x + w3
+    def fit_annotation(self, annotation, og_shape):
+        # Lane is defined by f(x): w1*x^2 + w2*x + w3
         # There are 4 expected lanes
-        # Each lane is defined by: w0, w1, w2, w3 and x1, x2 representing the starting x and ending x coordinate
+        # Each lane is defined by: w0, w1, w2 and x1, x2 representing the starting x and ending x coordinate
         video_path = annotation['path'].split('/')[-2]
         starting_y, starting_x = self.resizing_coordinates[video_path]
         lanes = annotation['lanes']
@@ -251,28 +251,28 @@ class LaneDataset(Dataset):
         lanes = [[((x - starting_x) / float(self.img_w), (y - starting_y) / float(self.img_h)) for x, y in lane]
                      for lane in lanes]
 
-        fit_truth = np.zeros((4, 6), dtype=np.float32)
+        fit_truth = np.zeros((4, 5), dtype=np.float32)
         for index, lane in enumerate(lanes):
-            # create x vector of x^3, x^2, x and 1
+            # create x vector of x^2, x and 1
             input_x = np.array([x for x, y in lane])
-            X = np.ones((len(lane), 4))
-            X[:, 0] = input_x ** 3
-            X[:, 1] = input_x ** 2
-            X[:, 2] = input_x
+            X = np.ones((len(lane), 3))
+            X[:, 0] = input_x ** 2
+            X[:, 1] = input_x
             Y = np.array([y for x, y in lane])
             W = np.matmul(np.linalg.pinv(np.matmul(X.T, X)), np.matmul(X.T, Y))
             # First four represent the weights
-            fit_truth[index][0:4] = W
+            fit_truth[index][0:3] = W
             # Second to last represent the x_start
-            fit_truth[index][4] = max(0, min(input_x))
+            fit_truth[index][3] = max(0, min(input_x))
             # last represents the last
-            fit_truth[index][5] = min(1, max(input_x))
+            fit_truth[index][4] = min(1, max(input_x))
         return {'path': annotation['path'], 'lanes': fit_truth}
 
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
+        og_shape = img.shape
         mask = self.dataset.create_mask(item['old_lanes'])
 
         # Resize image
@@ -301,7 +301,7 @@ class LaneDataset(Dataset):
             transformed = self.transform_annotation(item)['lanes']
             return img, transformed, mask, idx
         if self.dataset.save_fit and not self.dataset.load_fit:
-            fit = self.fit_annotation(item)['lanes']
+            fit = self.fit_annotation(item, og_shape)['lanes']
             return img, fit, mask, idx
         return img, item['lanes'], mask, idx
 

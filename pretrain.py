@@ -114,7 +114,7 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 1
+    num_epochs = 20
     batch_size = 2
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100),

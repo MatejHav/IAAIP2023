@@ -31,7 +31,6 @@ class ViTAutoencoder(nn.Module):
     def forward(self, x):
         # Encoding
         z = self.vit(x) 
-        
         # Decoding
         x_recon = self.decoder(z)
         x_recon = x_recon.view(x.size(0), 3, x.size(2), x.size(3))  # Reshape back to [B, C, H, W]

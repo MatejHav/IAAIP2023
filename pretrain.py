@@ -12,11 +12,13 @@ from main import get_dataloader
 from models.model_collection import *
 
 import models.resnet_autoencoder as resnet_autoencoder
-import models.vision_transformer as vit
 import models.vision_transformer_with_pytorch as PyTorchVisionTransformer
 
 model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/mask/"
+
+SHWO_IMAE_PROGRESS = True
+MODULO = 100
 
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
@@ -27,8 +29,6 @@ def training_loop(num_epochs, dataloaders, model, device):
     saved_time = int(time.time())
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=0.001)
-    # SGD
-    # optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     loss_function = torch.nn.MSELoss()
 
     losses = {
@@ -36,7 +36,7 @@ def training_loop(num_epochs, dataloaders, model, device):
         'val': []
     }
 
-    # i = 0
+    i = 0
 
     for epoch in range(num_epochs):
         model.train()
@@ -54,23 +54,23 @@ def training_loop(num_epochs, dataloaders, model, device):
             total_loss_train += loss.item()
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
 
-            # if i % 1 == 0:
-            #     output_image = prediction[0].cpu().detach().numpy()
-            #     output_image = np.transpose(output_image, (1, 2, 0))
-                
-            #     # Scale the image to the range [0, 255] if it's not already in that range.
-            #     if output_image.max() <= 1:
-            #         output_image = (output_image * 255).astype(np.uint8)
-            #     else:
-            #         output_image = output_image.astype(np.uint8)
+            if SHWO_IMAE_PROGRESS == True:
+                if i % MODULO == 0 and epoch > 2:
+                    output_image = prediction[0].cpu().detach().numpy()
+                    output_image = np.transpose(output_image, (1, 2, 0))
+                    
+                    # Scale the image to the range [0, 255] if it's not already in that range.
+                    if output_image.max() <= 1:
+                        output_image = (output_image * 255).astype(np.uint8)
+                    else:
+                        output_image = output_image.astype(np.uint8)
 
-            #     # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-            #     cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-            #     cv2.imshow('img', output_image)
-            #     cv2.waitKey(1)
+                    # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
+                    cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+                    cv2.imshow('img', output_image)
+                    cv2.waitKey(1)
 
-
-        # i = i + 1
+        i = i + 1
 
         losses['train'].append(total_loss_train / len(progress_bar_train))
 
@@ -118,20 +118,21 @@ def testing_loop(num_epochs, dataloaders, model, device):
             total_loss_train += loss.item()
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
 
-            if i % 1 == 0:
-                output_image = prediction[0].cpu().detach().numpy()
-                output_image = np.transpose(output_image, (1, 2, 0))
-                
-                # Scale the image to the range [0, 255] if it's not already in that range.
-                if output_image.max() <= 1:
-                    output_image = (output_image * 255).astype(np.uint8)
-                else:
-                    output_image = output_image.astype(np.uint8)
+            if SHWO_IMAE_PROGRESS == True:
+                if i % MODULO == 0:
+                    output_image = prediction[0].cpu().detach().numpy()
+                    output_image = np.transpose(output_image, (1, 2, 0))
+                    
+                    # Scale the image to the range [0, 255] if it's not already in that range.
+                    if output_image.max() <= 1:
+                        output_image = (output_image * 255).astype(np.uint8)
+                    else:
+                        output_image = output_image.astype(np.uint8)
 
-                # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-                cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-                cv2.imshow('img', output_image)
-                cv2.waitKey(1)
+                    # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
+                    cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+                    cv2.imshow('img', output_image)
+                    cv2.waitKey(1)
 
 
         i = i + 1
@@ -171,7 +172,7 @@ if __name__ == "__main__":
 
     model = PyTorchVisionTransformer.ViTAutoencoder()
 
-    # training_loop(num_epochs, culane_dataloader, model, device)
+    training_loop(num_epochs, culane_dataloader, model, device)
     testing_loop(num_epochs, culane_dataloader, model, device)
 
     # save the self.encoder model

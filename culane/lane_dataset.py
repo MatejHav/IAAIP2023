@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import numpy as np
 import imgaug.augmenters as iaa
@@ -18,15 +20,81 @@ GROUND_TRUTH_GRID = (64, 160)
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
 
+#\\\\Method 1 from https://stackoverflow.com/questions/61447973/how-to-calculate-positions-of-new-points-after-image-rotation
+def get_size_of_rotated_image(original_height, original_width, rotation_angle):
+    height_prime = abs(original_height * math.cos(rotation_angle)) + abs(original_width * math.sin(rotation_angle))
+    width_prime = abs(original_height * math.sin(rotation_angle)) + abs(original_width * math.cos(rotation_angle))
+    return height_prime, width_prime
 
-def horizontal_flip_adjust_ground_truth(img, item):
+
+def rotate(pt, radians, origin):
+    x, y = pt
+    offset_x, offset_y = origin
+    adjusted_x = (x - offset_x)
+    adjusted_y = (y - offset_y)
+    cos_rad = math.cos(radians)
+    sin_rad = math.sin(radians)
+    qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+    qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+    return qx, qy
+
+def rotate_point(pt, angle, origin, height, width):
+    x1, y1 = pt
+    x1_new, y1_new = rotate([x1, y1], angle, origin)
+    h_new, w_new = get_size_of_rotated_image(height, width, angle)
+    xoffset, yoffset = (w_new - width)/2, (h_new - height)/2
+    x1_new, y1_new = x1_new + xoffset, y1_new + yoffset
+    return x1_new, y1_new
+#\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+
+#Method2 - Similar approach -> Translating the point to a new coordinate system with the point of rotation being the origin
+def rotate_point2(point, angle, origin):
+    origin_x, origin_y = origin
+    rotation_matrix = np.array([[math.cos(angle), -math.sin(angle)],
+                                [math.sin(angle), math.cos(angle)]])
+
+    # Translate the point coordinates to the new coordinate system
+    translated_point = point - np.array([origin_x, origin_y])
+
+    # Apply the rotation matrix to the translated point
+    rotated_point = np.dot(rotation_matrix, translated_point)
+
+    # Translate the rotated point back to the original coordinate system
+    new_x = rotated_point[0] + origin_x
+    new_y = rotated_point[1] + origin_y
+
+    return new_x, new_y
+
+
+def adjust_ground_truth(img, item, augmentation, angle=None):
     """
     Shifts the points of the ground truth to correspond to the image after a horizontal flip is performed.
     """
     lanes = item['lanes']
     for lane in lanes:
         for i in range(len(lane)):
-            lane[i] = (img.shape[1] - lane[i][0], lane[i][1])
+            match augmentation:
+                case 'flip':
+                    lane[i] = (img.shape[1] - lane[i][0], lane[i][1])
+                case 'rotation':
+                    angle = np.deg2rad(angle)
+                    origin = (1600 / 2, 590 / 2)
+                    x_new, y_new = rotate_point2(lane[i], angle, origin)
+
+
+                    # \\\\\\\\\\\\old method\\\\\\\\\\
+                    # x = lane[i][0]
+                    # y = lane[i][1]
+                    # cosval = np.cos(angle)
+                    # sinval = np.sin(angle)
+                    # x_new = np.cos(angle) * x - np.sin(angle) * y
+                    # y_new = np.sin(angle) * x + np.cos(angle) * y
+                    # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+                    lane[i] = (x_new, y_new)
+                case _:
+                    raise Exception
 
 
 class LaneDataset(Dataset):
@@ -141,7 +209,7 @@ class LaneDataset(Dataset):
     def annotations(self):
         return self.dataset.annotations
 
-
+    # Method2 - Translating the point to a new coordinate system with the point of rotation being the origin
 
     def transform_annotations(self):
         """
@@ -334,12 +402,15 @@ class LaneDataset(Dataset):
         img = cv2.imread(item['path'])
         # For some reason cv2 resize wants to have width and then height
         original_shape = (img.shape[1], img.shape[0])
-
         #Iterate through the augmentations and adjust the ground truth per operation
         for aug in self.augmentations:
             img = aug.augment_image(img)
             if iaa.flip.Fliplr == type(aug):
-                horizontal_flip_adjust_ground_truth(img, item)
+                adjust_ground_truth(img, item, 'flip')
+            # elif iaa.Affine == type(aug):
+                # angle = aug.rotate.value
+                # adjust_ground_truth(img, item, 'rotation', angle)
+
 
         # Resize image
         # img = cv2.resize(img, (self.img_w, self.img_h))
@@ -350,8 +421,10 @@ class LaneDataset(Dataset):
             y, x = self.resizing_coordinates[video_path]
             img = img[y:y+self.img_h, x:x+self.img_w]
         else:
-            y = np.random.randint(0, img.shape[0] - self.img_h)
-            x = np.random.randint(0, img.shape[1] - self.img_w)
+            # y = np.random.randint(0, img.shape[0] - self.img_h)
+            # x = np.random.randint(0, img.shape[1] - self.img_w)
+            y = 140
+            x = 200
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
 

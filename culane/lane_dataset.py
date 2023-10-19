@@ -273,7 +273,7 @@ class LaneDataset(Dataset):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
         og_shape = img.shape
-        mask = self.dataset.create_mask(item['old_lanes'])
+        mask = self.dataset.create_mask(item['lanes'])
 
         # Resize image
         # img = cv2.resize(img, (self.img_w, self.img_h))

@@ -69,7 +69,8 @@ if __name__ == '__main__':
     sample_size = 100
     truth_color = [(1,0,0), (1,0.3,0), (1,0.6,0), (1,1,0)]
     pred_color = [(0,0,1), (0,0.3,1), (0,0.6,1), (0,1,1)]
-    for i, (images, lanes, masks, idx) in enumerate(pbar):
+
+    # for i, (images, lanes, masks, idx) in enumerate(pbar):
         # images = images.to(device)
         # with torch.no_grad():
         #     predictions = model(images)
@@ -112,31 +113,31 @@ if __name__ == '__main__':
         #     cv2.waitKey(50)
 
         # RUNNING TRAINED MODEL PREDICTIONS
-        images = images.to(device)
-        masks = masks.to(device)
-        with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments)
-        labels = labels.cpu()
-        masks = masks.cpu()
-        if last is None:
-            last = labels
-        else:
-            print((last - labels).std())
-            last = labels
-
-        batch_size = images.shape[0]
-        for j, img in enumerate(images):
-            y, x = np.where(labels[j] >= 0.5)
-            y_gt, x_gt = np.where(masks[j] >= 0.5)
-            img = img.cpu().numpy()
-            img = np.transpose(img, axes=[1, 2, 0])
-            img = img * IMAGENET_STD + IMAGENET_MEAN
-            img[y, x, 0] = labels[j, y, x]
-            img[y, x, 1] = 0
-            img[y, x, 2] = 0
-            img[y_gt, x_gt, 0] = 0
-            img[y_gt, x_gt, 1] = 1
-            img[y_gt, x_gt, 2] = 0
-            cv2.imshow('img', img)
-            cv2.waitKey(50)
+        # images = images.to(device)
+        # masks = masks.to(device)
+        # with torch.no_grad():
+        #     batch_of_segments = backbone(images)
+        #     labels = model(batch_of_segments)
+        # labels = labels.cpu()
+        # masks = masks.cpu()
+        # if last is None:
+        #     last = labels
+        # else:
+        #     print((last - labels).std())
+        #     last = labels
+        #
+        # batch_size = images.shape[0]
+        # for j, img in enumerate(images):
+        #     y, x = np.where(labels[j] >= 0.5)
+        #     y_gt, x_gt = np.where(masks[j] >= 0.5)
+        #     img = img.cpu().numpy()
+        #     img = np.transpose(img, axes=[1, 2, 0])
+        #     img = img * IMAGENET_STD + IMAGENET_MEAN
+        #     img[y, x, 0] = labels[j, y, x]
+        #     img[y, x, 1] = 0
+        #     img[y, x, 2] = 0
+        #     img[y_gt, x_gt, 0] = 0
+        #     img[y_gt, x_gt, 1] = 1
+        #     img[y_gt, x_gt, 2] = 0
+        #     cv2.imshow('img', img)
+        #     cv2.waitKey(50)

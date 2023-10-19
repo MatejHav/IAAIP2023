@@ -9,8 +9,10 @@ from torch.optim import Adam
 from tqdm.auto import tqdm
 from main import get_dataloader
 from models.model_collection import *
+from torchinfo import summary
 
-
+init_types_list = ["xavier_normal", "xavier_uniform", "he_uniform", "he_normal"]
+init_type = init_types_list[3]
 def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     """
     In this loss function we compute the MSE loss across all the predictions.
@@ -41,7 +43,47 @@ def iou(predictions, targets):
     return (1 - (predictions * targets).sum(dim=[1, 2]) / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum(
         dim=[1, 2])).mean()
 
-
+def weights_init(m):
+    if(init_type == "xavier_normal"):
+        if isinstance(m, torch.nn.TransformerDecoder) or isinstance(m, torch.nn.TransformerDecoderLayer):
+            for module in m.modules():
+                if isinstance(module, torch.nn.Linear):
+                    torch.nn.init.xavier_normal_(module.weight)
+                    if module.bias is not None:
+                        torch.nn.init.zeros_(module.bias)
+                elif isinstance(module, torch.nn.LayerNorm):
+                    module.bias.data.zero_()
+                    module.weight.data.fill_(1.0)
+    if(init_type == "xavier_uniform"):
+        if isinstance(m, torch.nn.TransformerDecoder)  or isinstance(m, torch.nn.TransformerDecoderLayer):
+            for module in m.modules():
+                if isinstance(module, torch.nn.Linear):
+                    torch.nn.init.xavier_uniform_(module.weight)
+                    if module.bias is not None:
+                        torch.nn.init.zeros_(module.bias)
+                elif isinstance(module, torch.nn.LayerNorm):
+                    module.bias.data.zero_()
+                    module.weight.data.fill_(1.0)
+    if(init_type == "he_normal"):
+        if isinstance(m, torch.nn.TransformerDecoder) or isinstance(m, torch.nn.TransformerDecoderLayer):
+            for module in m.modules():
+                if isinstance(module, torch.nn.Linear):
+                    torch.nn.init.kaiming_normal_(module.weight)
+                    if module.bias is not None:
+                        torch.nn.init.zeros_(module.bias)
+                elif isinstance(module, torch.nn.LayerNorm):
+                    module.bias.data.zero_()
+                    module.weight.data.fill_(1.0)
+    if (init_type == "he_uniform"):
+        if isinstance(m, torch.nn.TransformerDecoder) or isinstance(m, torch.nn.TransformerDecoderLayer):
+            for module in m.modules():
+                if isinstance(module, torch.nn.Linear):
+                    torch.nn.init.kaiming_uniform_(module.weight)
+                    if module.bias is not None:
+                        torch.nn.init.zeros_(module.bias)
+                elif isinstance(module, torch.nn.LayerNorm):
+                    module.bias.data.zero_()
+                    module.weight.data.fill_(1.0)
 def training_loop(num_epochs, dataloaders, models, device):
     for model_name in models:
         print("\n" + ''.join(['#'] * 25) + "\n")
@@ -52,6 +94,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
+        model.apply(weights_init)
         optimizer = Adam(model.parameters(), weight_decay=0, lr=0.01)
         loss_function = lambda pred, tar: 0.5 * torch.nn.BCELoss()(pred[tar >= 0.5], tar[tar >= 0.5]) + 0.5 * torch.nn.BCELoss()(pred[tar < 0.5], tar[tar < 0.5]) if 1 in (tar >= 0.5) else torch.nn.BCELoss()(pred, tar)
         # if models[model_name]['use_masks']:
@@ -69,7 +112,11 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             # Store the total loss
             total_loss_train = 0
+            counter = 0
+            file = open(init_type+str(epoch)+".txt", 'w')
+            file.write("EPOCH NUMBER " + str(epoch) + "\n\n\n")
             for batch, targets, masks, _ in progress_bar_train:
+
                 optimizer.zero_grad()
                 # If masks are the targets, update the ground truth
                 if models[model_name]['use_masks']:
@@ -87,6 +134,10 @@ def training_loop(num_epochs, dataloaders, models, device):
                 loss.backward()
                 # Learn
                 optimizer.step()
+                if(counter % 50 == 0):
+                    for name, param in model.named_parameters():
+                        file.write("Gradient values xavier-changes: -------- " + str(param.grad.norm().item()) + " where its from: " + name + "\n")
+                    file.write("\nEND OF ITERATION\n\n")
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
                 losses['train'].append(loss.item())
@@ -94,7 +145,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                                                    f" WORST LOSS: {round(np.max(losses['train']), 3)} |"
                                                    f" MEDIAN LOSS: {round(np.median(losses['train']), 3)} |"
                                                    f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-20):]), 3)} |")
-
+                counter+=1
+            file.close()
 
             total_loss_train /= len(progress_bar_train)
 
@@ -162,9 +214,9 @@ if __name__ == "__main__":
     num_epochs = 20
     batch_size = 15
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 100, False, False, True)),
-        'val': (get_dataloader, ('val', batch_size, 100, False, False, True)),
-        'test': (get_dataloader, ('test', batch_size, 100, False, False, True))
+        'train': (get_dataloader, ('train', batch_size, 30, False, False, True)),
+        'val': (get_dataloader, ('val', batch_size, 30, False, False, True)),
+        'test': (get_dataloader, ('test', batch_size, 30, False, False, True))
     }
     models = {
         "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/", "use_masks": True}

@@ -12,24 +12,6 @@ from main import *
 from models.model_collection import *
 
 
-def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    """
-    In this loss function we compute the MSE loss across all the predictions.
-    However, to avoid the network to just output no lanes at all,
-    as that is the easier option with way more many empty cells than lane cells,
-    we weight the different outputs such that the network has the same weight on lane cells and empty cells.
-    :param predictions: Predictions of the network.
-    :param targets: Ground truth.plzoveliky
-    :return: Total loss
-    """
-    selection_empty = targets[:, :, :, 2] <= 0.5
-    should_be_empty = (predictions[selection_empty] - targets[selection_empty]) ** 2 / torch.sum(selection_empty)
-    temp = 0.5 * should_be_empty.sum()
-    selection_lane = targets[:, :, :, 2] > 0.5
-    should_be_lane = (predictions[selection_lane] - targets[selection_lane]) ** 2 / torch.sum(selection_lane)
-    return temp + 0.5 * should_be_lane.sum()
-
-
 def iou(predictions, targets):
     """
     Computes 1 - IoU to act as a loss function.
@@ -68,11 +50,8 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             # Store the total loss
             total_loss_train = 0
-            for batch, targets, masks, _ in progress_bar_train:
+            for batch, targets, _ in progress_bar_train:
                 optimizer.zero_grad()
-                # If masks are the targets, update the ground truth
-                if models[model_name]['use_masks']:
-                    targets = masks
                 # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
@@ -106,9 +85,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val = tqdm(dataloader)
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch}")
             total_loss_val = 0
-            for batch, targets, masks, _ in progress_bar_val:
-                if models[model_name]['use_masks']:
-                    targets = masks
+            for batch, targets, _ in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)
                 with torch.no_grad():
@@ -134,9 +111,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         progress_bar_test = tqdm(dataloader)
         progress_bar_test.set_description(f"[TESTING]")
         total_loss_test = 0
-        for batch, targets, masks, _ in progress_bar_test:
-            if models[model_name]['use_masks']:
-                targets = masks
+        for batch, targets, _ in progress_bar_test:
             batch = batch.to(device)
             targets = targets.to(device)
             with torch.no_grad():
@@ -164,12 +139,12 @@ if __name__ == "__main__":
     num_epochs = 200
     batch_size = 30
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 100, False, False, True)),
-        'val': (get_dataloader, ('val', batch_size, 100, False, False, True)),
-        'test': (get_dataloader, ('test', batch_size, 100, False, False, True))
+        'train': (get_dataloader, ('train', batch_size, 100)),
+        'val': (get_dataloader, ('val', batch_size, 100)),
+        'test': (get_dataloader, ('test', batch_size, 100))
     }
     models = {
-        "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/", "use_masks": True}
+        "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/"}
     }
 
     training_loop(num_epochs, culane_dataloader, models, device)

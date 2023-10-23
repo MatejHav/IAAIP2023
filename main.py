@@ -16,9 +16,9 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30, load_formatted=False, load_fit=False, save_fit=False, save_formatted=False):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, save_fit=save_fit, save_formatted=save_formatted, load_formatted=load_formatted, load_fit=load_fit, subset=subset, normalize=True)
+    dataset = LaneDataset(split=split, root=root, subset=subset, normalize=True)
     batch_sampler = np.arange(0, len(dataset))
     batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
                                                   (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # backbone.to(device)
     from models.model_collection import get_vitt
     backbone, model = get_vitt(device)
-    state_dict = torch.load('./models/checkpoints/vitt/model_1698046882_vitt_0.model')
+    state_dict = torch.load('./models/checkpoints/vitt/model_1698046882_vitt_8.model')
     model.load_state_dict(state_dict)
     model.to(device)
     last = None

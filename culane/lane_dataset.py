@@ -108,11 +108,6 @@ class LaneDataset(Dataset):
         # y at each x offset
         self.offsets_ys = np.arange(self.img_h, -1, -self.strip_size)
 
-        if "load_formatted" in kwargs:
-            self.load_formatted = kwargs['load_formatted']
-        else:
-            self.load_formatted = True
-
         if augmentations is not None:
             # add augmentations
             augmentations = [getattr(iaa, aug['name'])(**aug['parameters'])
@@ -155,129 +150,16 @@ class LaneDataset(Dataset):
 
         return filtered_lane
 
-    def transform_annotation(self, anno, img_wh=None):
-        """
-        Transforms an annotation from its original format to the format 
-        that the model expects.
-        
-        Args:
-            anno (dict): Original annotation.
-            img_wh (tuple, optional): Width and height of the image. If not provided, 
-                                      these will be derived from the annotation.
-                                      
-        Returns:
-            dict: Transformed annotation.
-        """
-        if img_wh is None:
-            img_h = self.dataset.get_img_heigth(anno['path'])
-            img_w = self.dataset.get_img_width(anno['path'])
-        else:
-            img_w, img_h = img_wh
-
-        old_lanes = anno['lanes']
-
-        # removing lanes with less than 2 points
-        old_lanes = filter(lambda x: len(x) > 1, old_lanes)
-        # sort lane points by Y (bottom to top of the image)
-        old_lanes = [sorted(lane, key=lambda x: -x[1]) for lane in old_lanes]
-        # remove points with same Y (keep first occurrence)
-        old_lanes = [self.filter_lane(lane) for lane in old_lanes]
-        # normalize the annotation coordinates between 0 and 1
-        old_lanes = [[(x / float(img_w), y / float(img_h)) for x, y in lane]
-                     for lane in old_lanes]
-        # create transformed annotations
-        # 32 samples of y coordinate
-        # 80 samples of x coordinate
-        # 3 -> length, angle, probability
-        lanes = np.zeros((GROUND_TRUTH_GRID[0], GROUND_TRUTH_GRID[1], 3), dtype=np.float32)
-
-        for lane_idx, lane in enumerate(old_lanes):
-            # Last point will be added automatically with the length property of lanes
-            for index, point in enumerate(lane[:-1]):
-                next_point = lane[index + 1]
-                vector = (next_point[0] - point[0], next_point[1] - point[1])
-                # Length can be max sqrt(0.1**2 + 0.1**2) = 0.141
-                length = min(0.141, np.sqrt(vector[0] ** 2 + vector[1] ** 2))
-                # Angle: arctan(y/x)
-                angle = np.arctan(vector[1] / (vector[0] + 1e-5))
-                # Closest bin to the coordinates
-                y_bin = min(GROUND_TRUTH_GRID[0] - 1, int(point[1] * (GROUND_TRUTH_GRID[0] - 1)))
-                x_bin = min(GROUND_TRUTH_GRID[1] - 1, int(point[0] * (GROUND_TRUTH_GRID[1] - 1)))
-                lanes[y_bin, x_bin, 0] = length
-                lanes[y_bin, x_bin, 1] = angle
-                # Probability of ground truth is always 1
-                lanes[y_bin, x_bin, 2] = 1
-
-        return {'path': anno['path'], 'lanes': lanes}
-
-    def label_to_lanes(self, label):
-        """
-        Convert labels to lane objects.
-
-        Args:
-            label (np.ndarray): Model output labels.
-
-        Returns:
-            list: List of lane objects.
-        """
-        img_height = self.img_h
-        img_width = self.img_w
-        lanes = []
-        for y in range(GROUND_TRUTH_GRID[0]):
-            for x in range(GROUND_TRUTH_GRID[1]):
-                if label[y, x, 2] >= 0.5:
-                    length = label[y, x, 0]
-                    angle = label[y, x, 1]
-                    temp = [(int(x / GROUND_TRUTH_GRID[1] * img_width), int(y / GROUND_TRUTH_GRID[0] * img_height)),
-                            (int((x / GROUND_TRUTH_GRID[1] + np.cos(angle) * length) * img_width),
-                             int((y / GROUND_TRUTH_GRID[0] + np.sin(angle) * length) * img_height))]
-                    lanes.append(temp)
-        return lanes
-
-    def fit_annotation(self, annotation, og_shape):
-        # Lane is defined by f(x): w1*x^2 + w2*x + w3
-        # There are 4 expected lanes
-        # Each lane is defined by: w0, w1, w2 and x1, x2 representing the starting x and ending x coordinate
-        video_path = annotation['path'].split('/')[-2]
-        starting_y, starting_x = self.resizing_coordinates[video_path]
-        lanes = annotation['lanes']
-        # removing lanes with less than 2 points
-        lanes = filter(lambda x: len(x) > 1, lanes)
-        # sort lane points by Y (bottom to top of the image)
-        lanes = [sorted(lane, key=lambda x: -x[1]) for lane in lanes]
-        # remove points with same Y (keep first occurrence)
-        lanes = [self.filter_lane(lane) for lane in lanes]
-        # normalize the annotation coordinates between 0 and 1
-        lanes = [[((x - starting_x) / float(self.img_w), (y - starting_y) / float(self.img_h)) for x, y in lane]
-                     for lane in lanes]
-
-        fit_truth = np.zeros((4, 5), dtype=np.float32)
-        for index, lane in enumerate(lanes):
-            # create x vector of x^2, x and 1
-            input_x = np.array([x for x, y in lane])
-            X = np.ones((len(lane), 3))
-            X[:, 0] = input_x ** 2
-            X[:, 1] = input_x
-            Y = np.array([y for x, y in lane])
-            W = np.matmul(np.linalg.pinv(np.matmul(X.T, X)), np.matmul(X.T, Y))
-            # First four represent the weights
-            fit_truth[index][0:3] = W
-            # Second to last represent the x_start
-            fit_truth[index][3] = max(0, min(input_x))
-            # last represents the last
-            fit_truth[index][4] = min(1, max(input_x))
-        return {'path': annotation['path'], 'lanes': fit_truth}
 
 
     def __getitem__(self, idx):
         item = self.dataset[idx]
         img = cv2.imread(item['path'])
-        og_shape = img.shape
-        mask = self.dataset.create_mask(item['old_lanes'])
+        mask = self.dataset.create_mask(item['lanes'])
 
         # Resize image
-        img = cv2.resize(img, (self.img_w, self.img_h))
-        mask = cv2.resize(mask, (self.img_w, self.img_h))
+        # img = cv2.resize(img, (self.img_w, self.img_h))
+        # mask = cv2.resize(mask, (self.img_w, self.img_h))
         # To try to skew away from the underlying distribution, select random 320x800 position
         # If we already tried to resize a frame from this video, resize it based on that
         video_path = item['path'].split('/')[-2]
@@ -286,8 +168,8 @@ class LaneDataset(Dataset):
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:
-            y = 0#np.random.randint(0, img.shape[0] - self.img_h)
-            x = 0#np.random.randint(0, img.shape[1] - self.img_w)
+            y = np.random.randint(0, img.shape[0] - self.img_h)
+            x = np.random.randint(0, img.shape[1] - self.img_w)
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
@@ -298,13 +180,7 @@ class LaneDataset(Dataset):
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
-        if self.dataset.save_formatted and not self.dataset.load_formatted:
-            transformed = self.transform_annotation(item)['lanes']
-            return img, transformed, mask, idx
-        if self.dataset.save_fit and not self.dataset.load_fit:
-            fit = self.fit_annotation(item, og_shape)['lanes']
-            return img, fit, mask, idx
-        return img, item['lanes'], mask, idx
+        return img, mask, idx
 
     def __len__(self):
         return len(self.dataset)

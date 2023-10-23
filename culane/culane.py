@@ -29,14 +29,10 @@ SPLIT_FILES = {
 
 
 class CULane(LaneDatasetLoader):
-    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, save_formatted=False, save_fit=False, load_formatted=True, load_fit=False, subset=100):
+    def __init__(self, max_lanes=None, split='train', root=None, official_metric=True, subset=100):
         self.split = split
         self.root = root
         self.official_metric = official_metric
-        self.load_formatted = load_formatted
-        self.load_fit = load_fit
-        self.save_formatted = save_formatted
-        self.save_fit = save_fit
         self.logger = logging.getLogger(__name__)
         SPLIT_FILES['train'] = SPLIT_FILES['train'][:-4] + ('_' + str(subset) if subset < 100 else '') + '.txt'
 
@@ -72,12 +68,7 @@ class CULane(LaneDatasetLoader):
 
         lanes = [sorted(lane, key=lambda x: x[1]) for lane in lanes]  # sort by y
 
-        if self.load_formatted and not self.save_formatted:
-            return {'path': img_path, 'lanes': torch.load(img_path[:-4] + '_lines_formatted.txt'), 'old_lanes': lanes}
-        if self.load_fit and not self.save_fit:
-            return {'path': img_path, 'lanes': torch.load(img_path[:-4] + '_lines_fit.txt'), 'old_lanes': lanes}
-
-        return {'path': img_path, 'lanes': lanes, 'old_lanes': lanes}
+        return {'path': img_path, 'lanes': lanes}
 
     def create_mask(self, lanes):
         mask = np.zeros((self.img_h, self.img_w, 3))
@@ -91,8 +82,7 @@ class CULane(LaneDatasetLoader):
         self.annotations = []
         self.max_lanes = 0
         os.makedirs('./culane/cache', exist_ok=True)
-        cache_path = f'./culane/cache/culane_{self.split}_{"formatted" if self.load_formatted else "raw"}' \
-                     + ('_' + str(self.subset) if self.subset < 100 else '')
+        cache_path = f'./culane/cache/culane_{self.split}'
 
         if os.path.exists(cache_path):
             # print(f'LOADING {self.split.upper()} CACHED DATA')

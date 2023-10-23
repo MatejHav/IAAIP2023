@@ -1,6 +1,8 @@
 import gc
 import os
 import torch
+import torchvision
+
 from main import get_dataloader
 import pandas as pd
 import numpy as np
@@ -9,6 +11,7 @@ import cv2
 from IPython.display import display
 
 from models.backbone.backbone import Backbone
+from models.model_collection import get_vitt
 
 
 def transform_output_to_mask(y, x, output, img):
@@ -51,27 +54,26 @@ def compute_iou(prediction, target):
     return np.sum(intersection) / np.sum(union)
 
 def iou(predictions, targets):
-    return (predictions * targets + 1e-5).sum() / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum()
+    return (predictions * targets).sum() / torch.clamp((predictions + targets + 1e-5), min=0, max=1).sum()
 
-def show_culane_statistics(models, show=False, save=True, root='./', batch_size=32, device=torch.device,
+def show_culane_statistics(models, show=False, save=True, root='./', batch_size=30, device=torch.device,
                            filename='results.csv'):
     dataloaders = {
-        'normal': get_dataloader('normal', batch_size),
-        'crowd': get_dataloader('crowd', batch_size),
-        'hlight': get_dataloader('hlight', batch_size),
-        'shadow': get_dataloader('shadow', batch_size),
-        'noline': get_dataloader('noline', batch_size),
-        'arrow': get_dataloader('arrow', batch_size),
-        'curve': get_dataloader('curve', batch_size),
-        'cross': get_dataloader('cross', batch_size),
-        'night': get_dataloader('night', batch_size)
+        'normal': get_dataloader('normal', batch_size, save_fit=True),
+        'crowd': get_dataloader('crowd', batch_size, save_fit=True),
+        'hlight': get_dataloader('hlight', batch_size, save_fit=True),
+        'shadow': get_dataloader('shadow', batch_size, save_fit=True),
+        'noline': get_dataloader('noline', batch_size, save_fit=True),
+        'arrow': get_dataloader('arrow', batch_size, save_fit=True),
+        'curve': get_dataloader('curve', batch_size, save_fit=True),
+        'cross': get_dataloader('cross', batch_size, save_fit=True),
+        'night': get_dataloader('night', batch_size, save_fit=True)
     }
     result_table = pd.DataFrame(columns=list(dataloaders.keys()), index=list(map(lambda x: x['name'], models)))
     for model_dict in models:
         name = model_dict['name']
-        backbone = Backbone(model_dict['backbone'])
-        backbone.to(device)
-        model = torch.load(model_dict['path'])
+        backbone, model = get_vitt(device)
+        model.load_state_dict(torch.load(model_dict['path']))
         model.to(device)
         row = {}
         total_batch_len = sum([len(loader) for loader in dataloaders.values()])
@@ -82,23 +84,15 @@ def show_culane_statistics(models, show=False, save=True, root='./', batch_size=
             for batch, targets, mask, _ in dataloader:
                 # Load data into GPU
                 batch = batch.to(device)
-                targets = targets.to(device)
+                targets = mask.to(device)
                 # make predictions
                 with torch.no_grad():
                     batch_of_segments = backbone(batch)
-                    predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
-                # Clean memory
-                del batch, batch_of_segments
-                gc.collect()
-                torch.cuda.empty_cache()
+                    predictions = torch.nn.Sigmoid()(model(batch_of_segments))
                 # Compute IOU
                 for frame_num in range(predictions.shape[0]):
-                    all_iou.append(iou(predictions[frame_num], targets[frame_num]))
+                    all_iou.append(iou(predictions[frame_num], targets[frame_num]).cpu())
                 bar.update(1)
-                # Clean memory
-                del predictions, targets
-                gc.collect()
-                torch.cuda.empty_cache()
             row[key] = np.mean(all_iou)
         result_table.loc[name] = pd.Series(row)
     if save:
@@ -119,10 +113,11 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
+    transforms = torchvision.transforms.Resize(size=(576, 576))
     models = [
-        {'path': './models/checkpoints/mask/model_1696782274_0.model', 'name': 'mask_predictor',
-         'backbone': 'resnet34'}
+        {'path': './models/checkpoints/vitt/model_1697726243_vitt_91.model', 'name': 'vitt',
+         'backbone': torch.nn.Sequential(transforms, torch.load('./models/backbone/encoder.model'))}
     ]
     root = './results/'
     os.makedirs(root, exist_ok=True)
-    show_culane_statistics(models, show=True, save=True, root=root, batch_size=8, device=device)
+    show_culane_statistics(models, show=True, save=True, root=root, batch_size=30, device=device)

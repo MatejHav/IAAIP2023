@@ -6,8 +6,9 @@ import json
 import numpy as np
 
 from torch.optim import Adam
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm.auto import tqdm
-from main import get_dataloader
+from main import *
 from models.model_collection import *
 
 
@@ -52,10 +53,8 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = Adam(model.parameters(), weight_decay=0, lr=0.01)
-        loss_function = lambda pred, tar: 0.5 * torch.nn.BCELoss()(pred[tar >= 0.5], tar[tar >= 0.5]) + 0.5 * torch.nn.BCELoss()(pred[tar < 0.5], tar[tar < 0.5]) if 1 in (tar >= 0.5) else torch.nn.BCELoss()(pred, tar)
-        # if models[model_name]['use_masks']:
-        #     loss_function = iou
+        optimizer = Adam(model.parameters(), weight_decay=1e-6, lr=0.01)
+        loss_function = lambda pred, tar: torchvision.ops.focal_loss.sigmoid_focal_loss(pred, tar, reduction='sum', alpha=0.75, gamma=2)
         losses = {
             'train': [],
             'val': []
@@ -85,6 +84,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                 # Compute loss
                 loss = loss_function(predictions, targets)
                 loss.backward()
+                # for param in model.parameters():
+                #     print(param.grad.mean())
                 # Learn
                 optimizer.step()
                 # Save loss for printouts
@@ -93,7 +94,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)} |"
                                                    f" WORST LOSS: {round(np.max(losses['train']), 3)} |"
                                                    f" MEDIAN LOSS: {round(np.median(losses['train']), 3)} |"
-                                                   f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-20):]), 3)} |")
+                                                   f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-20):]), 3)} |"
+                                                   f" IOU: {round(1 - iou(torch.nn.Sigmoid()(predictions), targets).item(), 3)} |")
 
 
             total_loss_train /= len(progress_bar_train)
@@ -159,8 +161,8 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 20
-    batch_size = 15
+    num_epochs = 200
+    batch_size = 30
     culane_dataloader = {
         'train': (get_dataloader, ('train', batch_size, 100, False, False, True)),
         'val': (get_dataloader, ('val', batch_size, 100, False, False, True)),

@@ -276,7 +276,8 @@ class LaneDataset(Dataset):
         mask = self.dataset.create_mask(item['old_lanes'])
 
         # Resize image
-        # img = cv2.resize(img, (self.img_w, self.img_h))
+        img = cv2.resize(img, (self.img_w, self.img_h))
+        mask = cv2.resize(mask, (self.img_w, self.img_h))
         # To try to skew away from the underlying distribution, select random 320x800 position
         # If we already tried to resize a frame from this video, resize it based on that
         video_path = item['path'].split('/')[-2]
@@ -285,8 +286,8 @@ class LaneDataset(Dataset):
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:
-            y = np.random.randint(0, img.shape[0] - self.img_h)
-            x = np.random.randint(0, img.shape[1] - self.img_w)
+            y = 0#np.random.randint(0, img.shape[0] - self.img_h)
+            x = 0#np.random.randint(0, img.shape[1] - self.img_w)
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]

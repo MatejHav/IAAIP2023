@@ -18,6 +18,10 @@ class Backbone(nn.Module):
             self.grid = True
             return
 
+        if model_name == 'encoder':
+            self.model = torch.load('./models/backbone/encoder.model')
+            return
+
         # Remove the fully connected layer (classifier) at the end
         self.grid = False
         self.model = nn.Sequential(*list(get_model(model_name).children())[:-2])

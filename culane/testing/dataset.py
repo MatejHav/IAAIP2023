@@ -59,7 +59,7 @@ class RoadSequenceDatasetList_MASK(Dataset):# mask five pictures
         self.dataset_size = len(self.img_list)
         self.transforms = transforms
     def __len__(self):
-        return self.dataset_size 
+        return self.dataset_size
     def unpatchify(self, x):
         """
         x: (N, L, patch_size**2 *3)
@@ -118,7 +118,7 @@ class RoadSequenceDatasetList_MASK(Dataset):# mask five pictures
             return im_masked, mask, ids_restore
 
     def __getitem__(self, idx):
-        img_path_list = ["./data/00000.jpg", "./data/00030.jpg", "./data/00060.jpg", "./data/00090.jpg", "./data/00120.jpg"]
+        img_path_list = self.img_list[idx]
         data = [] 
         for i in range(5):
                 data1 = Image.open(img_path_list[i])

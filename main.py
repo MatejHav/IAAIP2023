@@ -43,10 +43,10 @@ if __name__ == '__main__':
     train_loader = get_dataloader('train', batch_size=10, subset=30)
     num_epochs = 10
     pbar = tqdm(train_loader)
-    backbone = Backbone('resnet34')
-    backbone.to(device)
-    model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
-    model.to(device)
+    # backbone = Backbone('resnet34')
+    # backbone.to(device)
+    # model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
+    # model.to(device)
     for i, (images, lanes, masks, _) in enumerate(pbar):
         # What we're doing here: the original tensor is likely in the format (channels, height, width)
         # commonly used in PyTorch. However, many image processing libraries expect the channels to be
@@ -63,14 +63,14 @@ if __name__ == '__main__':
 
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
-        with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments)
-        labels = labels.cpu()
-        
-        del batch_of_segments
-        gc.collect()
-        torch.cuda.empty_cache()
+        # with torch.no_grad():
+        #     batch_of_segments = backbone(images)
+        #     labels = model(batch_of_segments)
+        # labels = labels.cpu()
+        #
+        # del batch_of_segments
+        # gc.collect()
+        # torch.cuda.empty_cache()
         batch_size = images.shape[0]
         for j, img in enumerate(images):
             # Need to multiply the batch_size with the index to get the actual correct frame
@@ -81,13 +81,14 @@ if __name__ == '__main__':
             # print(labels_mean)
             # print(labels_stddev)
             # print(labels)
-            y, x = np.where(labels[j] >= 0.3)
+            # y, x = np.where(labels[j] >= 0.3)
             # print('x = ', x, 'y = ', y)
             img = img.cpu().numpy()
-            img[0, y, x] = labels[j, y, x]
-            img[1, y, x] = 1
-            img[2, y, x] = 1
+            # img[0, y, x] = labels[j, y, x]
+            # img[1, y, x] = 1
+            # img[2, y, x] = 1
             img = np.transpose(img, axes=[1, 2, 0])
+            # print(img.shape)
             cv2.imshow('img', img)
             cv2.waitKey(50)
         # cv2.waitKey(0)

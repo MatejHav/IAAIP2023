@@ -47,6 +47,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 
             batch = batch.to(device)
             prediction = model(batch)
+            # print(prediction, ' im pred ')
             loss = loss_function(prediction, batch)
             optimizer.zero_grad() 
             loss.backward()
@@ -126,7 +127,8 @@ if __name__ == "__main__":
     # model = vit.VisionTransformer()
 
     model = PyTorchVisionTransformer.ViTAutoencoder()
-
+    # for name, module in model.named_modules():
+        # print(name, module)
     training_loop(num_epochs, culane_dataloader, model, device)
 
     # save the self.encoder model

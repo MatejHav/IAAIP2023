@@ -1,6 +1,8 @@
 import os
 import torch
 import torch.nn as nn
+from tqdm import tqdm
+
 import config
 import time
 from config import args_setting
@@ -168,13 +170,52 @@ if __name__ == '__main__':
     pretrained_dict_1 = {k: v for k, v in pretrained_dict.items() if (k in model_dict)}
     model_dict.update(pretrained_dict_1)
     model.load_state_dict(model_dict)
-    '''
     
-    for epoch in range(1, args.epochs+1):
-        #scheduler.step()
-        train(args, epoch, model, train_loader, device, optimizer, criterion)
-        scheduler.step()
-        val(args, model, val_loader, device, criterion, best_acc, epoch)
-        #scheduler.step()
-        print('\n lr:')
-        print(scheduler.get_last_lr())
+    # '''
+    pbar = tqdm(train_loader)
+    # model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
+    # model.to(device)
+    for i, (images, lanes, masks, _) in enumerate(pbar):
+        # What we're doing here: the original tensor is likely in the format (channels, height, width)
+        # commonly used in PyTorch. However, many image processing libraries expect the channels to be
+        # the last dimension, i.e., (height, width, channels).
+        # .permute(1, 2, 0) swaps the dimensions so that the channels dimension becomes the last one.
+        # This is done to match the channel order expected by most image display functions.
+        # batch_size = images.shape[0]
+        # for j, _ in enumerate(images):
+        #     # Need to multiply the batch_size with the index to get the actual correct frame
+        #     label_img, _, _ = train_loader.dataset.draw_annotation(batch_size * i + j)
+        #     cv2.imshow('img', label_img)
+        #     cv2.waitKey(500)
+        # cv2.waitKey(0)
+
+        # RUNNING TRAINED MODEL PREDICTIONS
+        images = images.to(device)
+
+        torch.cuda.empty_cache()
+        batch_size = images.shape[0]
+        for j, img in enumerate(images):
+            # Need to multiply the batch_size with the index to get the actual correct frame
+            # img = np.swapaxes(img, axis1=0, axis2=1)
+            # img = np.swapaxes(img, axis1=1, axis2=2)
+            # labels_mean = torch.mean(labels[j], dim=0)
+            # labels_stddev = torch.std(labels[j], dim=0)
+            # print(labels_mean)
+            # print(labels_stddev)
+            # print(labels)
+            # print('x = ', x, 'y = ', y)
+            img = img.cpu().numpy()
+            img = np.transpose(img, axes=[1, 2, 0])
+            cv2.imshow('img', img)
+            cv2.waitKey(50)
+        # cv2.waitKey(0)
+
+    #
+    # for epoch in range(1, args.epochs+1):
+    #     #scheduler.step()
+    #     train(args, epoch, model, train_loader, device, optimizer, criterion)
+    #     scheduler.step()
+    #     val(args, model, val_loader, device, criterion, best_acc, epoch)
+    #     #scheduler.step()
+    #     print('\n lr:')
+    #     print(scheduler.get_last_lr())

@@ -48,6 +48,7 @@ class MaskPredictor(nn.Module):
         # return self.sigmoid(target)
     
     def forward(self, x: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        print(x.shape, target.shape)
         x = x.flatten(start_dim=1)
         x = self.shape_corrector(x)
         x = x.view(x.shape[0], 16*40, 20, 20)

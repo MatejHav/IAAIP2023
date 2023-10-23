@@ -18,13 +18,17 @@ class Backbone(nn.Module):
             self.grid = True
             return
 
+        if model_name == 'encoder':
+            self.model = torch.load('./models/backbone/encoder.model')
+            return
+
         # Remove the fully connected layer (classifier) at the end
         self.grid = False
         self.model = nn.Sequential(*list(get_model(model_name).children())[:-2])
         #
         # # Freeze training of the backbone
-        # for param in self.model.parameters():
-        #     param.requires_grad = False
+        for param in self.model.parameters():
+            param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

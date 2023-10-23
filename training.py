@@ -1,15 +1,12 @@
-import torch
 import os
 import time
-import gc
 import json
-import numpy as np
 
 from torch.optim import Adam
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm.auto import tqdm
 from main import *
 from models.model_collection import *
+from utils import FocalLoss_poly
 
 
 def iou(predictions, targets):
@@ -36,7 +33,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone.to(device)
         model.to(device)
         optimizer = Adam(model.parameters(), weight_decay=1e-6, lr=0.01)
-        loss_function = lambda pred, tar: torchvision.ops.focal_loss.sigmoid_focal_loss(pred, tar, reduction='sum', alpha=0.75, gamma=2)
+        loss_function = FocalLoss_poly(alpha=0.75,gamma=2,epsilon=0.1,size_average=True).to(device)
         losses = {
             'train': [],
             'val': []

@@ -21,10 +21,13 @@ class FocalLoss_poly(nn.Module):
 
     def forward(self, pred1, target):
         pred = nn.Sigmoid()(pred1)
+        pred = torch.stack((1 - pred, pred)).view(30, 2, 320, 800)
         p=pred
+        target = target.long()
         target1 = F.one_hot(target.unsqueeze(1), self.num_classes).transpose(1, -1).squeeze_(-1)
         target1 = target1.to(device=pred1.device,dtype=pred1.dtype)
         pt=target1*p +(1-target1)* (1-p)
+        # print(pt.shape)
         p = p.view(-1,1)
         pred = pred.view(-1,1)
         pt = pt.contiguous().view(-1,1)
@@ -41,6 +44,7 @@ class FocalLoss_poly(nn.Module):
         alpha[:,1] = alpha[:,1] * (1-self.alpha)
         alpha = (alpha * class_mask).sum(dim=1).view(-1,1)
         FL = -alpha*(torch.pow((1-probs), self.gamma))*log_p
+        # print(FL.shape)
         poly=FL+self.epsilon*torch.pow(1-pt,self.gamma+1)
 
         if self.size_average:
@@ -59,6 +63,7 @@ class FocalLoss(nn.Module):
 
     def forward(self, pred1, target):
         pred = nn.Sigmoid()(pred1)
+        pred = torch.stack((1 - pred, pred)).view(30, 2, 320, 800)
         p=pred
         target1 = F.one_hot(target.unsqueeze(1), self.num_classes).transpose(1, -1).squeeze_(-1)
         target1 = target1.to(device=pred1.device,dtype=pred1.dtype)
@@ -332,12 +337,12 @@ class ConvLSTM(nn.Module):
 
 class PatchEmbed(nn.Module):
     """ Image to Patch Embedding """
-    def __init__(self, img_size=(576, 576), patch_size=(16, 16), in_chans=3, embed_dim=768):
+    def __init__(self, img_size=(128, 256), patch_size=(16, 16), in_chans=3, embed_dim=768):
         super().__init__()
         self.img_size = img_size
         self.patch_size = patch_size
-        self.num_patches = (img_size[1] // patch_size) * (img_size[0] // patch_size)
-        self.patch_shape = (img_size[0] // patch_size, img_size[1] // patch_size)
+        self.num_patches = (img_size[1] // patch_size[1]) * (img_size[0] // patch_size[0])
+        self.patch_shape = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
         self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x, **kwargs):

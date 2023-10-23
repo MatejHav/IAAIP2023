@@ -44,8 +44,6 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        for name, module in model.named_modules():
-            print(name, module)
         optimizer = AdamW(model.parameters(), lr=0.005, weight_decay=1e-8)
         loss_function = iou
         losses = {
@@ -70,8 +68,6 @@ def training_loop(num_epochs, dataloaders, models, device):
                 with torch.no_grad():
                     batch_of_segments = backbone(batch).to(device)
                 # predictions = model(batch_of_segments)
-                print("here")
-                print(batch_of_segments.shape, targets.shape)
                 predictions = model(batch_of_segments, torch.zeros(*targets.shape, device=device))
                 # Compute loss
                 loss = loss_function(predictions, targets)

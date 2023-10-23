@@ -10,7 +10,6 @@ from torchvision import transforms
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataset import Dataset
 
-from culane import config
 from culane.culane import CULane
 
 GT_COLOR = (255, 0, 0)
@@ -403,7 +402,7 @@ class LaneDataset(Dataset):
         # Standardize image
         img = img / 255
         img = np.array(img)
-        img, mask2, ids_restore = self.random_masking(img, mask_ratio=config.mask_ratio)
+        img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
         img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image

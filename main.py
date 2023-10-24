@@ -12,7 +12,8 @@ import numpy as np
 from tqdm import tqdm
 import cv2
 import imgaug.augmenters as iaa
-
+from scipy import ndimage
+import torchvision.transforms.functional as TF
 
 from models.backbone.backbone import Backbone
 
@@ -39,34 +40,6 @@ def rotate_mask(mask, angle):
     return mask
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
-    root = './culane/data/'
-    # rotation_angle = random.randint(-45, 45)
-    augmentations = [
-        # {'name': 'HorizontalFlip', 'parameters': {'p': 0.5}},
-        {'name': 'Affine', 'parameters': {'rotate': 45}}
-    ]
-    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False, augmentations=augmentations)
-    it = dataset.__getitem__(33)
-    img = it[0]
-    mask = it[2]
-
-    rotated_mask = rotate_mask(mask, 45)
-    reshaped_mask = rotated_mask.reshape(320, 800, 3) / 255.0
-    reshaped_mask = np.mean(reshaped_mask, axis=2)
-
-    print_mask_on_image(img, reshaped_mask)
-
-    # loader = DataLoader(dataset=dataset,
-    #                           batch_size=batch_size,
-    #                           shuffle=False,  # Should shuffle the batches for each epoch
-    #                           worker_init_fn=_worker_init_fn_)
-    # return loader
-
-
-idx = 0
-
-
 def print_mask_on_image(img, mask):
     """
     Overlays an image from dataset.getitem() and its mask generated from the groundtruth. Used for testing purposes.
@@ -91,6 +64,34 @@ def print_mask_on_image(img, mask):
     plt.imshow(img_to_print)
     plt.axis('off')
     plt.show()
+
+
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
+    root = './culane/data/'
+    rotation_angle = random.randint(-45, 45)
+    augmentations = [
+        {'name': 'HorizontalFlip', 'parameters': {'p': 0.5}},
+        {'name': 'Affine', 'parameters': {'rotate': rotation_angle}}
+    ]
+    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False,
+                          augmentations=augmentations)
+    it = dataset.__getitem__(44)
+    img = it[0]
+    mask = it[2]
+
+    print_mask_on_image(img, mask)
+
+    # loader = DataLoader(dataset=dataset,
+    #                           batch_size=batch_size,
+    #                           shuffle=False,  # Should shuffle the batches for each epoch
+    #                           worker_init_fn=_worker_init_fn_)
+    # return loader
+
+
+idx = 0
+
+
+
 
 
 if __name__ == '__main__':

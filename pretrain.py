@@ -18,6 +18,7 @@ from models.vit_autoencoder import ViTAutoencoder
 model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/pretrained_vit/"
 
+
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
     print(f'PERFORMING PRETRAINING. SAVING INTO {save_path}.')
@@ -28,7 +29,7 @@ def training_loop(num_epochs, dataloaders, model, device):
     optimizer = AdamW(model.parameters(), lr=0.001)
     # SGD
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    loss_function = torch.nn.MSELoss()
+    loss_function = lambda pred, tar: torch.sqrt(torch.nn.MSELoss()(pred, tar))
 
     losses = {
         'train': [],
@@ -71,14 +72,13 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 1
-    batch_size = 30
+    num_epochs = 2
+    batch_size = 8
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=100),
+        'train': get_dataloader('train', batch_size, subset=10),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }
-
 
     model = ViTAutoencoder()
     training_loop(num_epochs, culane_dataloader, model, device)

@@ -62,8 +62,7 @@ class LaneDataset(Dataset):
                  dataset='culane',
                  augmentations=None,
                  normalize=False,
-                 img_size=(576, 576), # 320, 800
-                #  img_size=(513, 1024),
+                 img_size=(224, 224),
                  aug_chance=1.,
                  **kwargs):
         """
@@ -182,7 +181,7 @@ class LaneDataset(Dataset):
         x = torch.einsum('nhwc->nchw', x)
         x1 = x
         x = x.float()
-        self.patch_embed = PatchEmbed((576, 576), 16, 3, 768)
+        self.patch_embed = PatchEmbed((self.img_h, self.img_w), 16, 3, 768)
         # embed patches
         num_patches = self.patch_embed.num_patches
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, 768), requires_grad=False)

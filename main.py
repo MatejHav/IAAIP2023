@@ -63,7 +63,7 @@ if __name__ == '__main__':
     # backbone.to(device)
     from models.model_collection import get_vitt
     backbone, model = torch.nn.Identity(), ViTAutoencoder()
-    state_dict = torch.load('./models/checkpoints/pretrained_vit/model_1698046882_vitt_8.model')
+    state_dict = torch.load('./models/checkpoints/pretrained_vit/pretrained_vit_0.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         masks = masks.to(device)
         with torch.no_grad():
             batch_of_segments = backbone(images)
-            labels = model(batch_of_segments).view(batch_size, 3, 576, 576)
+            labels = model(batch_of_segments).view(batch_size, 3, 224, 224)
         labels = labels.cpu()
         masks = masks.cpu()
         if last is None:

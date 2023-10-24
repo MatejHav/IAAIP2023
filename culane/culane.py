@@ -82,7 +82,7 @@ class CULane(LaneDatasetLoader):
         self.annotations = []
         self.max_lanes = 0
         os.makedirs('./culane/cache', exist_ok=True)
-        cache_path = f'./culane/cache/culane_{self.split}'
+        cache_path = f'./culane/cache/culane_{self.split}_{self.subset}'
 
         if os.path.exists(cache_path):
             # print(f'LOADING {self.split.upper()} CACHED DATA')

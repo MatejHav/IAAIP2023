@@ -9,6 +9,9 @@ import torch
 from tqdm import tqdm
 import cv2
 
+from models.vit_autoencoder import ViTAutoencoder
+
+
 def _worker_init_fn_(_):
     torch_seed = torch.initial_seed()
     np_seed = torch_seed // 2 ** 32 - 1
@@ -45,8 +48,7 @@ if __name__ == '__main__':
         print("NO GPU RECOGNIZED.")
     batch_size = 30
     root = './culane/data/'
-    dataset = LaneDataset(split='train', root=root, load_formatted=False, load_fit=False, save_fit=True, subset=10,
-                          normalize=True)
+    dataset = LaneDataset(split='train', root=root, subset=10, normalize=True)
     batch_sampler = np.arange(0, len(dataset))
     batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
                                                   (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
@@ -60,23 +62,23 @@ if __name__ == '__main__':
     # backbone = Backbone('resnet34')
     # backbone.to(device)
     from models.model_collection import get_vitt
-    backbone, model = get_vitt(device)
-    state_dict = torch.load('./models/checkpoints/vitt/model_1698046882_vitt_8.model')
+    backbone, model = torch.nn.Identity(), ViTAutoencoder()
+    state_dict = torch.load('./models/checkpoints/pretrained_vit/pretrained_vit_0.model')
     model.load_state_dict(state_dict)
+    backbone.to(device)
     model.to(device)
     last = None
     sample_size = 100
     truth_color = [(1,0,0), (1,0.3,0), (1,0.6,0), (1,1,0)]
     pred_color = [(0,0,1), (0,0.3,1), (0,0.6,1), (0,1,1)]
-    for i, (images, lanes, masks, idx) in enumerate(pbar):
+    for i, (images, masked_images, masks, idx) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
         masks = masks.to(device)
         with torch.no_grad():
             batch_of_segments = backbone(images)
-            labels = torch.nn.Sigmoid()(model(batch_of_segments))
+            labels = model(batch_of_segments).view(batch_size, 3, 224, 224)
         labels = labels.cpu()
-        print(labels.max())
         masks = masks.cpu()
         if last is None:
             last = labels
@@ -85,20 +87,27 @@ if __name__ == '__main__':
 
         batch_size = images.shape[0]
         for j, img in enumerate(images):
-            y, x = np.where(labels[j] >= 0.5)
-            y_gt, x_gt = np.where(masks[j] >= 0.5)
-            y_over, x_over = np.where(np.logical_and(labels[j] >= 0.5, masks[j] >= 0.5))
+            # y, x = np.where(labels[j] >= 0.5)
+            # y_gt, x_gt = np.where(masks[j] >= 0.5)
+            # y_over, x_over = np.where(np.logical_and(labels[j] >= 0.5, masks[j] >= 0.5))
             img = img.cpu().numpy()
             img = np.transpose(img, axes=[1, 2, 0])
-            img = img * IMAGENET_STD + IMAGENET_MEAN
-            img[y, x, 0] = labels[j, y, x]
-            img[y, x, 1] = 0
-            img[y, x, 2] = 0
-            img[y_gt, x_gt, 0] = 0
-            img[y_gt, x_gt, 1] = 1
-            img[y_gt, x_gt, 2] = 0
-            img[y_over, x_over, 0] = 0
-            img[y_over, x_over, 1] = 0
-            img[y_over, x_over, 2] = 1
-            cv2.imshow('img', img)
+            # img = img * IMAGENET_STD + IMAGENET_MEAN
+            masked = masked_images[j].cpu().numpy()
+            masked = np.transpose(masked, axes=[1, 2, 0])
+            masked = masked * IMAGENET_STD + IMAGENET_MEAN
+            # img[y, x, 0] = labels[j, y, x]
+            # img[y, x, 1] = 0
+            # img[y, x, 2] = 0
+            # img[y_gt, x_gt, 0] = 0
+            # img[y_gt, x_gt, 1] = 1
+            # img[y_gt, x_gt, 2] = 0
+            # img[y_over, x_over, 0] = 0
+            # img[y_over, x_over, 1] = 0
+            # img[y_over, x_over, 2] = 1
+            cv2.imshow('original', img)
+            cv2.imshow('masked', masked)
+            label = labels[j].cpu().numpy()
+            label = np.transpose(label, axes=[1, 2, 0])
+            cv2.imshow('output', label)
             cv2.waitKey(50)

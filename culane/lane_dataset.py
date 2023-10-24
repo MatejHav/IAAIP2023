@@ -62,7 +62,7 @@ class LaneDataset(Dataset):
                  dataset='culane',
                  augmentations=None,
                  normalize=False,
-                 img_size=(224, 224),
+                 img_size=(576, 576),
                  aug_chance=1.,
                  **kwargs):
         """
@@ -241,7 +241,7 @@ class LaneDataset(Dataset):
         img = img / 255
         original = img.copy()
         img = np.array(img)
-        img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
+        img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.0)
         img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image

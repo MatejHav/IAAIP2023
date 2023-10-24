@@ -26,9 +26,9 @@ def training_loop(num_epochs, dataloaders, model, device):
         os.mkdir(save_path)
 
     model.to(device)
-    optimizer = AdamW(model.parameters(), lr=0.001)
+    # optimizer = AdamW(model.parameters(), lr=0.01)
     # SGD
-    # optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     loss_function = lambda pred, tar: torch.sqrt(torch.nn.MSELoss()(pred, tar))
 
     losses = {
@@ -72,10 +72,10 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 2
-    batch_size = 8
+    num_epochs = 20
+    batch_size = 30
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=10),
+        'train': get_dataloader('train', batch_size, subset=100),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }

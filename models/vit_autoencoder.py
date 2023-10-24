@@ -1,32 +1,35 @@
 import torch
 import torch.nn as nn
-from torchvision.models import get_model
-from torchvision.transforms import Resize
+import torchvision.models.vision_transformer as vits
+
 
 class ViTAutoencoder(nn.Module):
-    def __init__(self, image_size=224, hidden_dim=1024):
+    def __init__(self, image_size=576, hidden_dim=200):
         super(ViTAutoencoder, self).__init__()
 
-        self.resize = Resize(size=image_size)
-
         # Encoder: ViT without the head
-        self.vit = get_model('vit_l_32')
+        self.vit = vits.VisionTransformer(
+            image_size=image_size,
+            patch_size=16,
+            num_layers=2,
+            num_heads=2,
+            hidden_dim=hidden_dim,
+            mlp_dim=64,
+            dropout=0.1,
+            attention_dropout=0.1,
+            num_classes=0
+        )
         self.vit.heads = nn.Identity()  # Removing the head
-        for param in self.vit.parameters():
-            param.requires_grad = False
 
         # Decoder
         self.decoder = nn.Sequential(
-            nn.Linear(1024, hidden_dim * 2),  # out_dim is * 2 but could be other values
+            nn.Linear(hidden_dim, hidden_dim * 2),  # out_dim is * 2 but could be other values
             nn.ReLU(),
             nn.Linear(hidden_dim * 2, image_size * image_size * 3),  # Assuming 3 channels (RGB)
             nn.Sigmoid()  # Ensuring output values are between [0, 1]
         )
 
     def forward(self, x):
-        # Transform
-        x = self.resize(x)
-
         # Encoding
         z = self.vit(x)
 

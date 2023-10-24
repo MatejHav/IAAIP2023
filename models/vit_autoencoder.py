@@ -1,51 +1,42 @@
 import torch
-import math
-import warnings
-
-warnings.filterwarnings("ignore")
-
-from torch import nn
-from torchvision.models import get_model
-from torchvision.transforms import Resize
-
-from main import get_dataloader
+import torch.nn as nn
+import torchvision.models.vision_transformer as vits
 
 
-class ViTT(nn.Module):
+class ViTAutoencoder(nn.Module):
+    def __init__(self, image_size=576, hidden_dim=200):
+        super(ViTAutoencoder, self).__init__()
 
-    def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=6, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.transforms = Resize(size=(224, 224))
-        self.out = out_dim
-        self.vit = get_model('ViT_B_32')
-        self.vit.heads = nn.Sequential()
-        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
-        decoder_norm = nn.LayerNorm(d_model, *args, **kwargs)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm)
-        self.linear_reshape = nn.Sequential(
-            nn.Linear(768, 512),
-            nn.Dropout(dropout),
-            nn.ReLU(),
-            nn.Linear(512, math.prod(out_dim))
+        # Encoder: ViT without the head
+        self.vit = vits.VisionTransformer(
+            image_size=image_size,
+            patch_size=16,
+            num_layers=2,
+            num_heads=2,
+            hidden_dim=hidden_dim,
+            mlp_dim=64,
+            dropout=0.1,
+            attention_dropout=0.1,
+            num_classes=0
         )
-        self.sigmoid = nn.Sigmoid()
-        self.device = device
+        self.vit.heads = nn.Identity()  # Removing the head
 
-    def forward(self, x: torch.Tensor):
-        B, _, _, _ = x.shape
-        # Resize inputs into correct shape
-        x = self.transforms(x)
-        # Pass the image through the vision transformer
-        with torch.no_grad():
-            target = self.vit(x)
-        target = self.linear_reshape(target)
-        memory = torch.zeros(1, *target.shape[1:], device=self.device)
-        # Pass segments through the decoder
-        result = self.decoder(target, memory).view(B, *self.out)
-        # Result of shape (B, 768), reshape it using linear layers
+        # Decoder
+        self.decoder = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim * 2),  # out_dim is * 2 but could be other values
+            nn.ReLU(),
+            nn.Linear(hidden_dim * 2, image_size * image_size * 3),  # Assuming 3 channels (RGB)
+            nn.Sigmoid()  # Ensuring output values are between [0, 1]
+        )
 
-        # Sigmoid last two values representing tarting and ending x coordinates
-        result = torch.concat((result[:, :, :4], self.sigmoid(result[:, :, 4:])), dim=2)
+    def forward(self, x):
+        # Encoding
+        z = self.vit(x)
 
-        return result
+        # Decoding
+        x_recon = self.decoder(z)
+        x_recon = x_recon.view(x.size(0), 3, x.size(2), x.size(3))  # Reshape back to [B, C, H, W]
+
+        return x_recon
+
 

@@ -240,6 +240,7 @@ class LaneDataset(Dataset):
 
         # Standardize image
         img = img / 255
+        original = img.copy()
         img = np.array(img)
         img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
         img = img.squeeze(dim=0)
@@ -248,7 +249,8 @@ class LaneDataset(Dataset):
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
-        return img, mask, idx
+        original = self.to_tensor(original.astype(np.float32))
+        return original, img, mask, idx
 
     def __len__(self):
         return len(self.dataset)

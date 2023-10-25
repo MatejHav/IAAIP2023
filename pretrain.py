@@ -18,7 +18,7 @@ model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/mask/"
 
 SHWO_IMAE_PROGRESS = True
-MODULO = 100
+MODULO = 1
 
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
@@ -55,7 +55,7 @@ def training_loop(num_epochs, dataloaders, model, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
 
             if SHWO_IMAE_PROGRESS == True:
-                if i % MODULO == 0 and epoch > 2:
+                if i % MODULO == 0: # and epoch > 2:
                     output_image = prediction[0].cpu().detach().numpy()
                     output_image = np.transpose(output_image, (1, 2, 0))
                     

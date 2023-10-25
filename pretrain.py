@@ -17,8 +17,8 @@ import models.vision_transformer_with_pytorch as PyTorchVisionTransformer
 model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/pretrained_vit/"
 
-SHWO_IMAE_PROGRESS = True
-MODULO = 100
+SHOW_IMAGE_PROGRESS = True
+MODULO = 10
 
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
@@ -42,7 +42,7 @@ def training_loop(num_epochs, dataloaders, model, device):
         progress_bar_train = tqdm(dataloaders['train'])
         progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
         total_loss_train = 0
-        for unmasked, batch, targets, _ in progress_bar_train:
+        for unmasked, batch, masks, _ in progress_bar_train:
             optimizer.zero_grad()
             unmasked = unmasked.to(device)
             batch = batch.to(device)
@@ -52,12 +52,17 @@ def training_loop(num_epochs, dataloaders, model, device):
             optimizer.step()
             total_loss_train += loss.item()
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.4f}")
+            i = i + 1
 
-            if SHWO_IMAE_PROGRESS == True:
-                if i % MODULO == 0 and epoch > 2:
+            if SHOW_IMAGE_PROGRESS:
+                if i % MODULO == 0:
+                    input_image = unmasked[0].cpu().numpy()
+                    input_image = np.transpose(input_image, (1, 2, 0))
+                    mask_image = batch[0].cpu().numpy()
+                    mask_image = np.transpose(mask_image, (1, 2, 0))
                     output_image = prediction[0].cpu().detach().numpy()
                     output_image = np.transpose(output_image, (1, 2, 0))
-                    
+
                     # Scale the image to the range [0, 255] if it's not already in that range.
                     if output_image.max() <= 1:
                         output_image = (output_image * 255).astype(np.uint8)
@@ -65,20 +70,20 @@ def training_loop(num_epochs, dataloaders, model, device):
                         output_image = output_image.astype(np.uint8)
 
                     # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-                    cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-                    cv2.imshow('img', output_image)
+                    # cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+                    cv2.imshow('input', input_image)
+                    cv2.imshow('masked', mask_image)
+                    cv2.imshow('output', output_image)
                     cv2.waitKey(1)
-
-        i = i + 1
 
         losses['train'].append(total_loss_train / len(progress_bar_train))
 
-    # save model
-    torch.save(model, f'{save_path}/model_{saved_time}_{epoch}.model')
+        # save model
+        torch.save(model.state_dict(), f'{save_path}/pretrained_model_{epoch}.model')
 
-    # save loss to json file
-    with open(f'{save_path}/model_{saved_time}_{epoch}.json', 'w') as file:
-        json.dump(losses, file)
+        # save loss to json file
+        with open(f'{save_path}/pretrained_model_{epoch}.json', 'w') as file:
+            json.dump(losses, file)
 
 
 def testing_loop(num_epochs, dataloaders, model, device):
@@ -106,19 +111,24 @@ def testing_loop(num_epochs, dataloaders, model, device):
         progress_bar_train = tqdm(dataloaders['val'])
         progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
         total_loss_train = 0
-        for batch, targets, masks, _ in progress_bar_train:
-
+        for unmasked, batch, masks, _ in progress_bar_train:
+            i = i + 1
             batch = batch.to(device)
             prediction = model(batch)
-            loss = loss_function(prediction, batch)
-            optimizer.zero_grad() 
-            loss.backward()
-            optimizer.step()
-            total_loss_train += loss.item()
+            if i < 500:
+                loss = loss_function(prediction, unmasked)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                total_loss_train += loss.item()
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
 
-            if SHWO_IMAE_PROGRESS == True:
+            if SHOW_IMAGE_PROGRESS:
                 if i % MODULO == 0:
+                    input_image = unmasked[0].cpu().numpy()
+                    input_image = np.transpose(input_image, (1, 2, 0))
+                    mask_image = batch[0].cpu().numpy()
+                    mask_image = np.transpose(mask_image, (1, 2, 0))
                     output_image = prediction[0].cpu().detach().numpy()
                     output_image = np.transpose(output_image, (1, 2, 0))
                     
@@ -129,12 +139,11 @@ def testing_loop(num_epochs, dataloaders, model, device):
                         output_image = output_image.astype(np.uint8)
 
                     # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-                    cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-                    cv2.imshow('img', output_image)
+                    # cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+                    cv2.imshow('input', input_image)
+                    cv2.imshow('masked', mask_image)
+                    cv2.imshow('output', output_image)
                     cv2.waitKey(1)
-
-
-        i = i + 1
 
         losses['train'].append(total_loss_train / len(progress_bar_train))
         # save the self.encoder model
@@ -159,13 +168,13 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 20
-    batch_size = 2
+    batch_size = 8
     culane_dataloader = {
-        'train': get_dataloader('train', batch_size, subset=100),
+        'train': get_dataloader('train', batch_size, subset=100, shuffle=False),
         'val': get_dataloader('val', batch_size),
         'test': get_dataloader('test', batch_size)
     }
 
-    model = ViTAutoencoder()
+    model = PyTorchVisionTransformer.ViTAutoencoder()
     training_loop(num_epochs, culane_dataloader, model, device)
     testing_loop(num_epochs, culane_dataloader, model, device)

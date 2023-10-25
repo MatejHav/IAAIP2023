@@ -8,7 +8,7 @@ from main import *
 from models.model_collection import *
 from utils import FocalLoss_poly
 
-
+import torch.nn.functional as F
 def iou(predictions, targets):
     """
     Computes 1 - IoU to act as a loss function.
@@ -22,6 +22,12 @@ def iou(predictions, targets):
         dim=[1, 2])).mean()
 
 
+def ce_loss(pred, tar):
+    pred = torch.stack((1 - pred, pred)).view(pred.shape[0], 2, *pred.shape[1:])
+    tar = torch.stack((1 - tar, tar)).view(tar.shape[0], 2, *tar.shape[1:])
+    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02])).to(device)
+    return criterion(pred, tar)
+
 def training_loop(num_epochs, dataloaders, models, device):
     for model_name in models:
         print("\n" + ''.join(['#'] * 25) + "\n")
@@ -33,7 +39,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone.to(device)
         model.to(device)
         optimizer = Adam(model.parameters(), weight_decay=1e-6, lr=0.01)
-        loss_function = FocalLoss_poly(alpha=0.75,gamma=2,epsilon=0.1,size_average=True).to(device)
+        loss_function = ce_loss#FocalLoss_poly(alpha=0.75,gamma=2,epsilon=0.1,size_average=True).to(device)
         losses = {
             'train': [],
             'val': []
@@ -47,7 +53,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
             # Store the total loss
             total_loss_train = 0
-            for batch, targets, _ in progress_bar_train:
+            for batch, _, targets, _ in progress_bar_train:
                 optimizer.zero_grad()
                 # Load batch into memory
                 batch = batch.to(device)
@@ -82,7 +88,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val = tqdm(dataloader)
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch}")
             total_loss_val = 0
-            for batch, targets, _ in progress_bar_val:
+            for batch, _, targets, _ in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)
                 with torch.no_grad():
@@ -108,7 +114,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         progress_bar_test = tqdm(dataloader)
         progress_bar_test.set_description(f"[TESTING]")
         total_loss_test = 0
-        for batch, targets, _ in progress_bar_test:
+        for batch, _, targets, _ in progress_bar_test:
             batch = batch.to(device)
             targets = targets.to(device)
             with torch.no_grad():
@@ -134,11 +140,11 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 30
+    batch_size = 8
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 100)),
-        'val': (get_dataloader, ('val', batch_size, 100)),
-        'test': (get_dataloader, ('test', batch_size, 100))
+        'train': (get_dataloader, ('train', batch_size, 100, False)),
+        'val': (get_dataloader, ('val', batch_size, 100, False)),
+        'test': (get_dataloader, ('test', batch_size, 100, False))
     }
     models = {
         "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/"}

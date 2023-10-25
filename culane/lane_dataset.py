@@ -240,9 +240,9 @@ class LaneDataset(Dataset):
         # Standardize image
         img = img / 255
         original = img.copy()
-        img = np.array(img)
-        img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.0)
-        img = img.squeeze(dim=0)
+        # img = np.array(img)
+        img, mask2, ids_restore = img, img, None#self.random_masking(img, mask_ratio=0.0)
+        # img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image
         if self.normalize:

@@ -54,6 +54,6 @@ if __name__ == '__main__':
 
     os.chdir("../")
     dataloader = get_dataloader('train', batch_size=8, subset=10)
-    vitt = ViTT(d_model=768, out_dim=(320, 800), nhead=16, device=None)
+    vitt = ViTT(d_model=768, out_dim=(576, 576), nhead=16, device=None)
     for batch, targets, masks, idx in dataloader:
         predictions = vitt(batch)

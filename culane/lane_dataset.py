@@ -62,7 +62,7 @@ class LaneDataset(Dataset):
                  dataset='culane',
                  augmentations=None,
                  normalize=False,
-                 img_size=(224, 224),
+                 img_size=(576, 576),
                  aug_chance=1.,
                  **kwargs):
         """

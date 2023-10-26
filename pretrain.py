@@ -18,7 +18,7 @@ model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/pretrained_vit/"
 
 SHOW_IMAGE_PROGRESS = True
-MODULO = 10
+MODULO = 1
 
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
@@ -115,12 +115,11 @@ def testing_loop(num_epochs, dataloaders, model, device):
             i = i + 1
             batch = batch.to(device)
             prediction = model(batch)
-            if i < 500:
-                loss = loss_function(prediction, unmasked)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                total_loss_train += loss.item()
+            loss = loss_function(prediction, unmasked)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            total_loss_train += loss.item()
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
 
             if SHOW_IMAGE_PROGRESS:

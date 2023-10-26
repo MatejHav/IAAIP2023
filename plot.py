@@ -39,6 +39,6 @@ def plot_epoch_loss(path, title, max_epoch, x_axis, y_axis):
     plt.show()
 
 if __name__ == '__main__':
-    path = "./models/checkpoints/vitt/stats/model_1697549353_vitt_{epoch}.json"
-    # plot_train_loss_epoch(path, title="Training loss of ViTT during epoch 0", x_axis="batch number", y_axis="Binary Cross Entropy")
-    plot_epoch_loss(path, "Loss of ViTT over multiple epochs", 9, "Epoch number", "Binary Cross Entropy")
+    path = "./models/checkpoints/vitt/stats/model_1698228331_vitt_4.json"
+    plot_train_loss_epoch(path, title="Training loss of ViTT during epoch 5", x_axis="batch number", y_axis="Binary Cross Entropy")
+    # plot_epoch_loss(path, "Loss of ViTT over multiple epochs", 5, "Epoch number", "Binary Cross Entropy")

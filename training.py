@@ -44,6 +44,10 @@ def training_loop(num_epochs, dataloaders, models, device):
             'train': [],
             'val': []
         }
+        ious = {
+            'train': [],
+            'val': []
+        }
         for epoch in range(num_epochs):
             # Train the model
             model.train(True)
@@ -72,12 +76,16 @@ def training_loop(num_epochs, dataloaders, models, device):
                 optimizer.step()
                 # Save loss for printouts
                 total_loss_train += torch.mean(loss).item()
+                intersect_over_union = 1 - iou(torch.nn.Sigmoid()(predictions), targets).item()
                 losses['train'].append(loss.item())
+                ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {round(loss.item(), 3)} |"
                                                    f" WORST LOSS: {round(np.max(losses['train']), 3)} |"
                                                    f" MEDIAN LOSS: {round(np.median(losses['train']), 3)} |"
-                                                   f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-20):]), 3)} |"
-                                                   f" IOU: {round(1 - iou(torch.nn.Sigmoid()(predictions), targets).item(), 3)} |")
+                                                   f" RUNNING LOSS: {round(np.mean(losses['train'][max(0, len(losses['train'])-100):]), 3)} |"
+                                                   f" IOU: {round(intersect_over_union, 3)} |"
+                                                   f" BEST IOU: {round(max(ious['train']), 3)} |"
+                                                   f" RUNNING IOU: {round(np.mean(ious['train'][max(0, len(ious['train'])-100):]), 3)}")
 
 
             total_loss_train /= len(progress_bar_train)
@@ -97,6 +105,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                     loss = loss_function(predictions, targets)
                     total_loss_val += torch.mean(loss).item()
                     losses['val'].append(loss.item())
+                    intersect_over_union = 1 - iou(torch.nn.Sigmoid()(predictions), targets).item()
+                    ious['val'].append(intersect_over_union)
             total_loss_val /= len(progress_bar_val)
             print(
                 f'EPOCH {epoch} | TOTAL TRAINING LOSS: {round(total_loss_train, 3)} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')

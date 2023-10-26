@@ -249,7 +249,7 @@ class LaneDataset(Dataset):
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
         original = self.to_tensor(original.astype(np.float32))
-        return original, img, mask, idx
+        return img, original, mask, idx
 
     def __len__(self):
         return len(self.dataset)

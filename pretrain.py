@@ -20,6 +20,7 @@ save_path = "./models/checkpoints/mask/"
 SHWO_IMAE_PROGRESS = False
 MODULO = 100
 
+
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
     print(f'PERFORMING PRETRAINING. SAVING INTO {save_path}.')
@@ -48,7 +49,7 @@ def training_loop(num_epochs, dataloaders, model, device):
             batch = batch.to(device)
             prediction = model(batch)
             loss = loss_function(prediction, batch)
-            optimizer.zero_grad() 
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             total_loss_train += loss.item()
@@ -58,7 +59,7 @@ def training_loop(num_epochs, dataloaders, model, device):
                 if i % MODULO == 0: # and epoch > 2:
                     output_image = prediction[0].cpu().detach().numpy()
                     output_image = np.transpose(output_image, (1, 2, 0))
-                    
+
                     # Scale the image to the range [0, 255] if it's not already in that range.
                     if output_image.max() <= 1:
                         output_image = (output_image * 255).astype(np.uint8)
@@ -112,7 +113,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 #             batch = batch.to(device)
 #             prediction = model(batch)
 #             loss = loss_function(prediction, batch)
-#             optimizer.zero_grad() 
+#             optimizer.zero_grad()
 #             loss.backward()
 #             optimizer.step()
 #             total_loss_train += loss.item()
@@ -122,7 +123,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 #                 if i % MODULO == 0:
 #                     output_image = prediction[0].cpu().detach().numpy()
 #                     output_image = np.transpose(output_image, (1, 2, 0))
-                    
+
 #                     # Scale the image to the range [0, 255] if it's not already in that range.
 #                     if output_image.max() <= 1:
 #                         output_image = (output_image * 255).astype(np.uint8)
@@ -163,7 +164,7 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 100
-    batch_size = 8
+    batch_size = 5
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100),
         'val': get_dataloader('val', batch_size),

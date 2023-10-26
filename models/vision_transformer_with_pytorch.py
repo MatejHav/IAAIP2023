@@ -28,15 +28,15 @@ class ViTAutoencoder(nn.Module):
             nn.Sigmoid()  # Ensuring output values are between [0, 1]
         )
 
-        # check if model is in eval mode, then load the decoder checkpoint. 
-        if self.eval:
-            self.vit = torch.load('./models/checkpoints/mask/encoder.model', map_location=torch.device('cpu'))
+        # # check if model is in eval mode, then load the decoder checkpoint. 
+        # if self.eval:
+        #     self.vit = torch.load('./models/checkpoints/mask/encoder.model', map_location=torch.device('cpu'))
 
-            print(f"LOADING MODEL FROM CHECKPOINT IN TEST MODE")
+        #     print(f"LOADING MODEL FROM CHECKPOINT IN TEST MODE")
 
-            # freeze weights
-            for param in self.vit.parameters():
-                param.requires_grad = False
+        #     # freeze weights
+        #     for param in self.vit.parameters():
+        #         param.requires_grad = False
         
     def forward(self, x):
         # Encoding

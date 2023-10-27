@@ -62,7 +62,7 @@ class LaneDataset(Dataset):
                  dataset='culane',
                  augmentations=None,
                  normalize=False,
-                 img_size=(576, 576),
+                 img_size=(224, 224),
                  aug_chance=1.,
                  **kwargs):
         """
@@ -231,8 +231,8 @@ class LaneDataset(Dataset):
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:
-            y = np.random.randint(0, img.shape[0] - self.img_h)
-            x = np.random.randint(0, img.shape[1] - self.img_w)
+            y = 150#np.random.randint(0, img.shape[0] - self.img_h)
+            x = 500#np.random.randint(0, img.shape[1] - self.img_w)
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
@@ -240,15 +240,16 @@ class LaneDataset(Dataset):
         # Standardize image
         img = img / 255
         original = img.copy()
-        img = np.array(img)
-        img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
-        img = img.squeeze(dim=0)
+        # img = np.array(img)
+        # img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
+        # img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
         img = self.to_tensor(img.astype(np.float32))
         original = self.to_tensor(original.astype(np.float32))
+        original = img
         return original, img, mask, idx
 
     def __len__(self):

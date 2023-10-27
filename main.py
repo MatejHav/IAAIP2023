@@ -55,7 +55,7 @@ if __name__ == '__main__':
         print("NO GPU RECOGNIZED.")
     batch_size = 8
     root = './culane/data/'
-    dataset = LaneDataset(split='train', root=root, subset=100, normalize=True)
+    dataset = LaneDataset(split='train', root=root, subset=10, normalize=True)
     loader = DataLoader(dataset=dataset,
                         batch_size=batch_size,
                         shuffle=False,
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     # backbone.to(device)
     from models.model_collection import get_vitt
     backbone, model = get_vitt(device)
-    state_dict = torch.load('./models/checkpoints/vitt/model_1698228331_vitt_4.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698322627_vitt_9.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
@@ -105,4 +105,4 @@ if __name__ == '__main__':
             img[y_over, x_over, 1] = 0
             img[y_over, x_over, 2] = 1
             cv2.imshow('original', img)
-            cv2.waitKey(50)
+            cv2.waitKey(500)

@@ -245,8 +245,11 @@ class LaneDataset(Dataset):
         img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image
-        if self.normalize:
-            img = (img - IMAGENET_MEAN) / IMAGENET_STD
+        # if self.normalize:
+        #     img = (img - IMAGENET_MEAN) / IMAGENET_STD
+        # cv2.imshow('original', original)
+        # cv2.imshow("masked", img)
+        # cv2.waitKey(50)
         img = self.to_tensor(img.astype(np.float32))
         original = self.to_tensor(original.astype(np.float32))
         return img, original, mask, idx

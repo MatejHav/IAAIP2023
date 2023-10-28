@@ -27,7 +27,7 @@ def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
                                                   (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
                            mode='constant', constant_values=0)
     batch_sampler = batch_sampler.reshape((len(dataset) // batch_size + 1, batch_size))
-    np.random.shuffle(batch_sampler)
+    # np.random.shuffle(batch_sampler)
     loader = DataLoader(dataset=dataset,
                         batch_sampler=batch_sampler,
                         worker_init_fn=_worker_init_fn_)
@@ -63,20 +63,20 @@ if __name__ == '__main__':
     # backbone.to(device)
     from models.model_collection import get_vitt
     backbone, model = torch.nn.Identity(), ViTAutoencoder()
-    state_dict = torch.load('./models/checkpoints/pretrained_vit/pretrained_vit_0.model')
-    model.load_state_dict(state_dict)
+    # state_dict = torch.load('./models/checkpoints/pretrained_vit/pretrained_vit_0.model')
+    # model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
     last = None
     sample_size = 100
     truth_color = [(1,0,0), (1,0.3,0), (1,0.6,0), (1,1,0)]
     pred_color = [(0,0,1), (0,0.3,1), (0,0.6,1), (0,1,1)]
-    for i, (images, masked_images, masks, idx) in enumerate(pbar):
+    for i, (masked_images, images, masks, idx) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
         masks = masks.to(device)
         with torch.no_grad():
-            batch_of_segments = backbone(images)
+            batch_of_segments = backbone(masked_images)
             labels = model(batch_of_segments).view(batch_size, 3, 224, 224)
         labels = labels.cpu()
         masks = masks.cpu()
@@ -95,7 +95,7 @@ if __name__ == '__main__':
             # img = img * IMAGENET_STD + IMAGENET_MEAN
             masked = masked_images[j].cpu().numpy()
             masked = np.transpose(masked, axes=[1, 2, 0])
-            masked = masked * IMAGENET_STD + IMAGENET_MEAN
+            # masked = masked * IMAGENET_STD + IMAGENET_MEAN
             # img[y, x, 0] = labels[j, y, x]
             # img[y, x, 1] = 0
             # img[y, x, 2] = 0
@@ -105,9 +105,9 @@ if __name__ == '__main__':
             # img[y_over, x_over, 0] = 0
             # img[y_over, x_over, 1] = 0
             # img[y_over, x_over, 2] = 1
-            cv2.imshow('original', img)
-            cv2.imshow('masked', masked)
-            label = labels[j].cpu().numpy()
-            label = np.transpose(label, axes=[1, 2, 0])
-            cv2.imshow('output', label)
-            cv2.waitKey(50)
+            # cv2.imshow('original', img)
+            # cv2.imshow('masked', masked)
+            # label = labels[j].cpu().numpy()
+            # label = np.transpose(label, axes=[1, 2, 0])
+            # cv2.imshow('output', label)
+            # cv2.waitKey(50)

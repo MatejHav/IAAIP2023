@@ -26,7 +26,8 @@ def training_loop(num_epochs, dataloaders, model, device):
     print(f'PERFORMING PRETRAINING. SAVING INTO {save_path}.')
     if not os.path.exists(save_path):
         os.mkdir(save_path)
-
+    backbone = torch.nn.Identity()
+    backbone.to(device)
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=0.001)
     loss_function = torch.nn.MSELoss()
@@ -44,12 +45,12 @@ def training_loop(num_epochs, dataloaders, model, device):
         progress_bar_train = tqdm(dataloaders['train'])
         progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
         total_loss_train = 0
-        for unmasked, batch, targets, _ in progress_bar_train:
+        for i, (batch, targets, masks, idx) in enumerate(progress_bar_train):
             optimizer.zero_grad()
-            unmasked = unmasked.to(device)
             batch = batch.to(device)
+            targets = targets.to(device)
             prediction = model(batch)
-            loss = loss_function(prediction, unmasked)
+            loss = loss_function(prediction, targets)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -170,7 +171,7 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 10 # changed to 10 from 100
-    batch_size = 5
+    batch_size = 30
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100),
         'val': get_dataloader('val', batch_size),

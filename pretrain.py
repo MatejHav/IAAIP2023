@@ -17,7 +17,7 @@ import models.vision_transformer_with_pytorch as PyTorchVisionTransformer
 model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/pretrained_vit/"
 
-SHWO_IMAE_PROGRESS = False
+SHWO_IMAE_PROGRESS = True
 MODULO = 100
 
 
@@ -30,6 +30,7 @@ def training_loop(num_epochs, dataloaders, model, device):
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=0.001)
     loss_function = torch.nn.MSELoss()
+    saved_time = int(time.time())
 
     losses = {
         'train': [],
@@ -56,7 +57,7 @@ def training_loop(num_epochs, dataloaders, model, device):
             progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.4f}")
 
             if SHWO_IMAE_PROGRESS == True:
-                if i % MODULO == 0: # and epoch > 2:
+                if i % MODULO == 0:
                     output_image = prediction[0].cpu().detach().numpy()
                     output_image = np.transpose(output_image, (1, 2, 0))
 
@@ -66,9 +67,12 @@ def training_loop(num_epochs, dataloaders, model, device):
                     else:
                         output_image = output_image.astype(np.uint8)
 
+                    input_image = batch[0].cpu().detach().numpy()
+                    input_image = np.transpose(input_image, (1, 2, 0))
                     # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-                    cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-                    cv2.imshow('img', output_image)
+                    # cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+                    cv2.imshow('input', input_image)
+                    cv2.imshow('output', output_image)
                     cv2.waitKey(1)
 
         i = i + 1
@@ -165,7 +169,7 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 100
+    num_epochs = 10 # changed to 10 from 100
     batch_size = 5
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100),

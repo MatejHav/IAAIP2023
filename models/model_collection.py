@@ -12,7 +12,7 @@ class Mean(torch.nn.Module):
         return x.mean(dim=1)
 
 def get_vitt(device):
-    model = ViTT(d_model=2304, out_dim=(224, 224), nhead=48, device=device)
+    model = ViTT(d_model=2304, out_dim=(224, 224), nhead=8, device=device)
     return torch.nn.Identity(), model
 
 def get_vit_autoencoder(device):

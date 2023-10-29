@@ -41,14 +41,20 @@ class ViTT(nn.Module):
 
     def forward(self, x: torch.Tensor):
         # MAE outputs the reconstructed image
-        target = self.vit(x)
-        target = self.down_sampler(target).mean(dim=1)
-        B, H, W = target.shape
-        target = target.view(1, B, H * W)
-        memory = target[0, 0].view(1, 1, H * W)
-        target_mask = torch.tril(torch.ones(B, B, device=x.device)).expand(48, B, B)
+        memory = self.vit(x)
+        memory = self.down_sampler(memory).mean(dim=1)
+        B, H, W = memory.shape
+        memory = memory.view(B, H * W)
+        target = torch.zeros(1, H * W, device=x.device)
         # Pass segments through the decoder
-        result = self.decoder(target, memory, tgt_mask=target_mask).view(B, 1, 48, 48)
+        outputs = []
+        mask = torch.zeros(1, B, device=x.device)
+        for i in range(B):
+            mask[0, i] = 1
+            target = self.decoder(target, memory, memory_mask=mask)
+            # Add to outputs and add 1 channel
+            outputs.append(target.view(1, H, W))
+        result = torch.stack(outputs)
         result = self.up_sampler(result).view(B, *self.out)
         return self.sigmoid(result)
 

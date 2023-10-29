@@ -24,7 +24,7 @@ def iou(predictions, targets):
         dim=[1, 2])).mean()
 
 
-criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02]))
+criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02]), reduction='sum')
 
 
 def ce_loss(pred, tar):
@@ -44,7 +44,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone.to(device)
         model.to(device)
         optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=0.001)
-        loss_function = FocalLoss_poly(alpha=0.75, gamma=2, epsilon=0.1, size_average=True).to(device)
+        loss_function = FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=False).to(device)
         for epoch in range(num_epochs):
             losses = {
                 'train': [],
@@ -74,6 +74,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                     print(id)
                     exit()
                 loss.backward()
+                # for param in model.parameters():
+                #     print(param.grad)
                 # Learn
                 optimizer.step()
                 # Save loss for printouts
@@ -86,7 +88,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                                                    f" IOU: {intersect_over_union:.3f} |"
                                                    f" BEST IOU: {max(ious['train']):.3f} |"
                                                    f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - 100):]):.3f} | "
-                                                   f" MAX STD ACROSS BATCH: {predictions.std(dim=0).max().item():.3f} | ")
+                                                   f" MAX STD ACROSS BATCH: {predictions.std(dim=0).max().item():.3f} | "
+                                                   f" MIN AND MAX: {predictions.min().item():.3f}, {predictions.max().item():.3f} | ")
 
             # Validate the model
             dataloader = dataloaders['val'][0](*dataloaders['val'][1])
@@ -148,7 +151,7 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02])).to(device)
+    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02]), reduction='sum').to(device)
 
     # Training Parameters
     num_epochs = 200

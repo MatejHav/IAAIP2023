@@ -10,11 +10,11 @@ from torchvision.models import get_model
 from torchvision.transforms import Resize
 from models.models_mae import *
 from main import get_dataloader
-
+from models.positional_encoder.pe import PositionalEncoding
 
 class ViTT(nn.Module):
 
-    def __init__(self, d_model, out_dim, nhead, device, dropout=0.25, num_decoder_layers=2, *args, **kwargs):
+    def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=4, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out = out_dim
         self.vit = mae_vit_base_patch16()
@@ -22,6 +22,7 @@ class ViTT(nn.Module):
         for key in state_dict:
             self.vit.state_dict()[key] = state_dict[key]
             self.vit.state_dict()[key].requires_grad = False
+        self.pe = PositionalEncoding(d_model=d_model)
         decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=256, batch_first=True)
         decoder_norm = nn.LayerNorm(d_model, *args, **kwargs)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm)
@@ -44,7 +45,8 @@ class ViTT(nn.Module):
         memory = self.vit(x)
         memory = self.down_sampler(memory).mean(dim=1)
         B, H, W = memory.shape
-        memory = memory.view(B, H * W)
+        memory = memory.view(B, 1, H * W)
+        memory = self.pe(memory).view(B, H * W)
         target = torch.zeros(1, H * W, device=x.device)
         # Pass segments through the decoder
         outputs = []

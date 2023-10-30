@@ -65,7 +65,7 @@ if __name__ == '__main__':
     # backbone.to(device)
     from models.model_collection import get_vitt
     backbone, model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698564023_vitt_0.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698619875_vitt_4.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
@@ -89,20 +89,20 @@ if __name__ == '__main__':
 
         batch_size = images.shape[0]
         for j, img in enumerate(images):
-            y, x = np.where(labels[j] >= 0)
+            y, x = np.where(labels[j] >= 0.0)
             y_gt, x_gt = np.where(masks[j] >= 0.5)
             y_over, x_over = np.where(np.logical_and(labels[j] >= 0.5, masks[j] >= 0.5))
             img = img.cpu().numpy()
             img = np.transpose(img, axes=[1, 2, 0])
             img = img * IMAGENET_STD + IMAGENET_MEAN
-            img[y, x, 0] = labels[j, y, x]
+            img[y, x, 0] = (labels[j, y, x] - labels[j].min()) / labels[j].max()
             img[y, x, 1] = 0
             img[y, x, 2] = 0
-            img[y_gt, x_gt, 0] = 0
-            img[y_gt, x_gt, 1] = 1
-            img[y_gt, x_gt, 2] = 0
-            img[y_over, x_over, 0] = 0
-            img[y_over, x_over, 1] = 0
-            img[y_over, x_over, 2] = 1
+            # img[y_gt, x_gt, 0] = 0
+            # img[y_gt, x_gt, 1] = 1
+            # img[y_gt, x_gt, 2] = 0
+            # img[y_over, x_over, 0] = 0
+            # img[y_over, x_over, 1] = 0
+            # img[y_over, x_over, 2] = 1
             cv2.imshow('original', img)
             cv2.waitKey(50)

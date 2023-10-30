@@ -14,16 +14,11 @@ class MAEFeatureExtraactor(nn.Module):
             self.vit.state_dict()[key] = state_dict[key]
             self.vit.state_dict()[key].requires_grad = False
         
-        # Decoder
-        self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim * 2), # out_dim is * 2 but could be other values
-            nn.ReLU(),
-            nn.Linear(hidden_dim * 2, image_size * image_size * 3),  # Assuming 3 channels (RGB)
-            nn.Sigmoid()  # Ensuring output values are between [0, 1]
-        )
-        
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
         # put it forward through MAE
         x = self.vit(x)
-        
+        # apply soigmoid to range values to [0, 1]
+        x = self.sigmoid(x)
         return x

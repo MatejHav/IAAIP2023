@@ -2,7 +2,7 @@ import torch.nn
 import torchvision.transforms
 
 from models.vitt import ViTT
-from models.vision_transformer_with_pytorch import ViTAutoencoder
+from models.vit_autoencoder import ViTAutoencoder
 
 from models.models_mae import *
 

@@ -4,6 +4,7 @@ import time
 
 import cv2
 import numpy as np
+import torch
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 
@@ -89,6 +90,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 
     # save model
     torch.save(model, f'{save_path}/{saved_time}_{epoch}.model')
+    torch.save(model.state_dict(), f'{save_path}/mae_feature_extractor_{epoch}.model')
 
     # save loss to json file
     with open(f'{save_path}/model_{saved_time}_{epoch}.json', 'w') as file:
@@ -174,7 +176,7 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 5
+    num_epochs = 10
     batch_size = 8
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100, shuffle=False),
@@ -182,8 +184,8 @@ if __name__ == "__main__":
         'test': get_dataloader('test', batch_size)
     }
 
+    # Define and choose model here. Most (backbone) models defined in this project will work here, assuming the model file has an encoder and decode.
     model = MAEFeatureExtractor.MAEFeatureExtraactor()
-
 
     training_loop(num_epochs, culane_dataloader, model, device)
     # testing_loop(num_epochs, culane_dataloader, model, device)

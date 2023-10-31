@@ -21,7 +21,7 @@ class FocalLoss_poly(nn.Module):
 
     def forward(self, pred, target):
         # pred = nn.Sigmoid()(pred1)
-        pred = torch.stack((1 - pred, pred)).view(pred.shape[0], 2, *pred.shape[1:])
+        pred = torch.stack((pred, 1 - pred)).view(pred.shape[0], 2, *pred.shape[1:])
         p=pred
         target = target.long()
         target1 = F.one_hot(target.unsqueeze(1), self.num_classes).transpose(1, -1).squeeze_(-1)

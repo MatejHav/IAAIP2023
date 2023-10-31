@@ -231,8 +231,8 @@ class LaneDataset(Dataset):
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:
-            y = 150#np.random.randint(0, img.shape[0] - self.img_h)
-            x = 750#np.random.randint(0, img.shape[1] - self.img_w)
+            y = 250#np.random.randint(0, img.shape[0] - self.img_h)
+            x = 700#np.random.randint(0, img.shape[1] - self.img_w)
             self.resizing_coordinates[video_path] = (y, x)
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]

@@ -75,7 +75,7 @@ class CULane(LaneDatasetLoader):
 
         for lane in lanes:
             for index in range(1, len(lane)):
-                cv2.line(mask, list(map(int, lane[index - 1])), list(map(int, lane[index])), color=(1, 1, 1), thickness=8)
+                cv2.line(mask, list(map(int, lane[index - 1])), list(map(int, lane[index])), color=(1, 1, 1), thickness=5)
         return mask[:, :, 0].astype(np.float32)
 
     def load_annotations(self):

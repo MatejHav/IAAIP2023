@@ -11,27 +11,10 @@ from utils import FocalLoss_poly
 import torch.nn.functional as F
 
 
-def iou(predictions, targets):
-    """
-    Computes 1 - IoU to act as a loss function.
-
-    :param predictions: segmentation mask, must be of the same shape as target containing values [0, 1]
-    :param targets: binary segmentation mask of the ground truth
-    :return: average IoU ove the elements in the batch
-    """
-    eps = 1e-5
-    return (1 - ((predictions * targets).sum(dim=[1, 2]) + eps) / torch.clamp((predictions + targets + eps), min=0, max=1).sum(
-        dim=[1, 2])).mean()
-
-
-criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02]), reduction='sum')
-
-
-def ce_loss(pred, tar):
-    pred = torch.stack((1 - pred, pred)).view(pred.shape[0], 2, *pred.shape[1:]).to(device)
-    tar = torch.stack((1 - tar, tar)).view(tar.shape[0], 2, *tar.shape[1:]).to(device)
-    return criterion(pred, tar)
-
+def iou(pred: torch.Tensor, tar: torch.Tensor, threshold=0.5):
+    up = torch.logical_and(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    down = torch.logical_or(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    return ((up + 1e-6) / (down + 1e-6)).mean().item()
 
 def training_loop(num_epochs, dataloaders, models, device):
     for model_name in models:
@@ -43,8 +26,8 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=0.001)
-        loss_function = FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=False).to(device)
+        optimizer = AdamW(model.parameters(), weight_decay=1e-6, lr=0.1)
+        loss_function = FocalLoss_poly(alpha=0.65, gamma=2, epsilon=0.1, size_average=True).to(device)
         for epoch in range(num_epochs):
             losses = {
                 'train': [],
@@ -79,7 +62,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 # Learn
                 optimizer.step()
                 # Save loss for printouts
-                intersect_over_union = 1 - iou(predictions, targets).item()
+                intersect_over_union = iou(predictions, targets)
                 losses['train'].append(loss.item())
                 ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.3f} |"
@@ -105,7 +88,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                     loss = loss_function(predictions, targets)
                     total_loss_val += torch.mean(loss).item()
                     losses['val'].append(loss.item())
-                    intersect_over_union = 1 - iou(predictions, targets).item()
+                    intersect_over_union = iou(predictions, targets)
                     ious['val'].append(intersect_over_union)
             total_loss_val /= len(progress_bar_val)
             print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
@@ -151,13 +134,12 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([0.02, 1.02]), reduction='sum').to(device)
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 16
+    batch_size = 32
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 100, True)),
+        'train': (get_dataloader, ('train', batch_size, 10, True)),
         'val': (get_dataloader, ('val', batch_size, 100, True)),
         'test': (get_dataloader, ('test', batch_size, 100, True))
     }

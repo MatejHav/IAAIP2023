@@ -26,8 +26,8 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=1e-6, lr=0.1)
-        loss_function = FocalLoss_poly(alpha=0.65, gamma=2, epsilon=0.1, size_average=True).to(device)
+        optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=0.1)
+        loss_function = FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=True).to(device)
         for epoch in range(num_epochs):
             losses = {
                 'train': [],

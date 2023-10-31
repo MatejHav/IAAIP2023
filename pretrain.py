@@ -1,32 +1,33 @@
-import torch
+import json
 import os
 import time
-import gc
-import json
-import numpy as np
-import cv2
 
+import cv2
+import numpy as np
+import torch
 from torch.optim import AdamW
 from tqdm.auto import tqdm
+
+import models.mae_feature_extractor_testing as MAEFeatureExtractor
 from main import get_dataloader
 from models.model_collection import *
-
-import models.resnet_autoencoder as resnet_autoencoder
-import models.vision_transformer_with_pytorch as PyTorchVisionTransformer
-import models.mae_feature_extractor_testing as MAEFeatureExtractor
 
 model_name = 'resnet_autoencoder'
 save_path = "./models/checkpoints/pretrained_vit/"
 
-SHOW_IMAGE_PROGRESS = True
-MODULO = 1
+SHOW_IMAGE_PROGRESS = False
+SAVE_IMAGE_PROGRESS = True
+MODULO = 1000
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
+IMAGENET_STD = np.array([0.229, 0.224, 0.225])
 
 def training_loop(num_epochs, dataloaders, model, device):
     print("\n" + ''.join(['#'] * 25) + "\n")
     print(f'PERFORMING PRETRAINING. SAVING INTO {save_path}.')
     if not os.path.exists(save_path):
-        os.mkdir(save_path)
+        os.mkdir(model_name["path"])
 
+    saved_time = int(time.time())
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=0.001)
     loss_function = torch.nn.MSELoss()
@@ -43,49 +44,57 @@ def training_loop(num_epochs, dataloaders, model, device):
         progress_bar_train = tqdm(dataloaders['train'])
         progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: TBD")
         total_loss_train = 0
-        for unmasked, batch, masks, _ in progress_bar_train:
-            optimizer.zero_grad()
-            unmasked = unmasked.to(device)
+        for batch, targets, masks, _ in progress_bar_train:
+
             batch = batch.to(device)
             prediction = model(batch)
-            loss = loss_function(prediction, unmasked)
+            loss = loss_function(prediction, batch)
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             total_loss_train += loss.item()
-            progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.4f}")
+            progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {total_loss_train / len(progress_bar_train):.4f}")
             i = i + 1
 
-            if SHOW_IMAGE_PROGRESS:
-                if i % MODULO == 0:
-                    input_image = unmasked[0].cpu().numpy()
-                    input_image = np.transpose(input_image, (1, 2, 0))
-                    mask_image = batch[0].cpu().numpy()
-                    mask_image = np.transpose(mask_image, (1, 2, 0))
-                    output_image = prediction[0].cpu().detach().numpy()
-                    output_image = np.transpose(output_image, (1, 2, 0))
+            if i % MODULO == 0 and (SHOW_IMAGE_PROGRESS == True or SAVE_IMAGE_PROGRESS == True):
+                # Fetch image from GPU and transpose as needed for visualization purpose
+                output_image = prediction[0].cpu().detach().numpy()
+                output_image = np.transpose(output_image, (1, 2, 0))
+                input_image = batch[0].cpu().numpy()
+                input_image = np.transpose(input_image, (1, 2, 0))     
 
-                    # Scale the image to the range [0, 255] if it's not already in that range.
-                    if output_image.max() <= 1:
-                        output_image = (output_image * 255).astype(np.uint8)
-                    else:
-                        output_image = output_image.astype(np.uint8)
+                # Apply needed normalization depending on whether we are wuth MAEFatureExtractor or not
+                if isinstance(model, MAEFeatureExtractor.MAEFeatureExtraactor):
+                    output_image = (output_image * IMAGENET_STD) + IMAGENET_MEAN
+                    input_image = (input_image * IMAGENET_STD) + IMAGENET_MEAN
 
-                    # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-                    # cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
-                    cv2.imshow('input', input_image)
-                    cv2.imshow('masked', mask_image)
+                # OpenCV expects images in range [0, 255], so we'll fix this if needed
+                if output_image.max() <= 1:
+                    output_image = (output_image * 255).astype(np.uint8)
+                    input_image = (input_image * 255).astype(np.uint8)
+
+                # Concat output and input
+                output_image = np.concatenate((output_image, input_image), axis=1)
+
+                # Show the image if SHOW_IMAGE_PROGRESS is True
+                if SHOW_IMAGE_PROGRESS == True:
                     cv2.imshow('output', output_image)
                     cv2.waitKey(1)
 
+                # Save the image and include epoch number as well as "i" in the file name if SAVE_IMAGE_PROGRESS is True
+                if SAVE_IMAGE_PROGRESS == True:
+                    cv2.imwrite(f'./models/checkpoints/outputs/epoch_{epoch}_itt_{i}.jpg', output_image)
+
+
         losses['train'].append(total_loss_train / len(progress_bar_train))
 
-        # save model
-        torch.save(model.state_dict(), f'{save_path}/pretrained_model_{epoch}.model')
+    # save model
+    torch.save(model, f'{save_path}/{saved_time}_{epoch}.model')
+    torch.save(model.state_dict(), f'{save_path}/mae_feature_extractor_{epoch}.model')
 
-        # save loss to json file
-        with open(f'{save_path}/pretrained_model_{epoch}.json', 'w') as file:
-            json.dump(losses, file)
-
+    # save loss to json file
+    with open(f'{save_path}/model_{saved_time}_{epoch}.json', 'w') as file:
+        json.dump(losses, file)
 
 # def testing_loop(num_epochs, dataloaders, model, device):
 #     print("\n" + ''.join(['#'] * 25) + "\n")
@@ -167,7 +176,7 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 20
+    num_epochs = 10
     batch_size = 8
     culane_dataloader = {
         'train': get_dataloader('train', batch_size, subset=100, shuffle=False),
@@ -175,8 +184,8 @@ if __name__ == "__main__":
         'test': get_dataloader('test', batch_size)
     }
 
+    # Define and choose model here. Most (backbone) models defined in this project will work here, assuming the model file has an encoder and decode.
     model = MAEFeatureExtractor.MAEFeatureExtraactor()
-
 
     training_loop(num_epochs, culane_dataloader, model, device)
     # testing_loop(num_epochs, culane_dataloader, model, device)

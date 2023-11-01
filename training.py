@@ -51,6 +51,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             dataloader = dataloaders['train'][0](*dataloaders['train'][1])
             progress_bar_train = tqdm(dataloader)
             progress_bar_train.set_description(f"[STARTING TRAINING] | ")
+            model.training = True
             for batch, _, targets, id in progress_bar_train:
                 optimizer.zero_grad()
                 # Load batch into memory
@@ -86,6 +87,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val = tqdm(dataloader)
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
             total_loss_val = 0
+            model.training = False
             for batch, _, targets, _ in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)

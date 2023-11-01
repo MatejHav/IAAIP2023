@@ -56,19 +56,21 @@ class ViTT(nn.Module):
             targets = torch.concat((target, targets), dim=0)[:-1]
             # Pass segments through the decoder
             memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
-            tgt_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
-            result = self.decoder(targets, memory, memory_mask=memory_mask, tgt_mask=tgt_mask).view(B, 1, H, W)
+            result = []
+            for i in range(B):
+                target = self.decoder(targets[i].view(1, H * W), memory,
+                                      memory_mask=memory_mask[i].view(1, B)).view(1, H * W)
+                result.append(target.view(1, H, W))
+            result = torch.stack(result)
         else:
             target = torch.zeros(1, H * W, device=x.device)
             # Pass segments through the decoder
             memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
-            tgt_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
             result = []
             for i in range(B):
-                target = self.decoder(target.view(1, 1, H * W), memory,
-                                      memory_mask=memory_mask[i].view(1, B),
-                                      tgt_mask=tgt_mask[i].view(1, B)).view(1, H, W)
-                result.append(target)
+                target = self.decoder(target, memory,
+                                      memory_mask=memory_mask[i].view(1, B)).view(1, H * W)
+                result.append(target.view(1, H, W))
             result = torch.stack(result)
         result = self.up_sampler(result).view(B, *self.out)
         return self.sigmoid(result)

@@ -57,7 +57,7 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    batch_size = 16
+    batch_size = 32
     root = './culane/data/'
     dataset = LaneDataset(split='train', root=root, subset=100, normalize=True)
     loader = DataLoader(dataset=dataset,
@@ -67,19 +67,19 @@ if __name__ == '__main__':
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
     backbone, model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698779018_vitt_10.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698824995_vitt_1.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
-    threshold = 0.45
+    model.training = True
+    threshold = 0.5
 
     for i, (images, masked_images, masks, idx) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
         masks = masks.to(device)
         with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments)
+            labels = model(images, masks)
         labels = labels.cpu()
         masks = masks.cpu()
         print(f'IoU: {compute_iou(labels, masks, threshold=threshold):.3f}')

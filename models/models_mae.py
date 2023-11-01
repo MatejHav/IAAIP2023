@@ -214,8 +214,7 @@ class MaskedAutoencoderViT(nn.Module):
         return loss
 
     def forward(self, imgs, mask_ratio=0.0):
-        with torch.no_grad():
-            latent, _, ids_restore = self.forward_encoder(imgs, mask_ratio)
+        latent, _, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         pred = self.unpatchify(pred)
         return pred

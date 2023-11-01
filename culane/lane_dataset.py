@@ -228,6 +228,7 @@ class LaneDataset(Dataset):
         video_path = item['path'].split('/')[-2]
         if video_path in self.resizing_coordinates:
             y, x = self.resizing_coordinates[video_path]
+            print(item['path'])
             img = img[y:y + self.img_h, x:x + self.img_w]
             mask = mask[y:y + self.img_h, x:x + self.img_w]
         else:

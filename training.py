@@ -35,9 +35,9 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=0, lr=0.01)
-        criterion = torch.nn.BCELoss() #FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=True).to(device)
-        loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
+        optimizer = AdamW(model.parameters(), weight_decay=0, lr=0.000001)
+        criterion = torch.nn.CrossEntropyLoss(weight=torch.Tensor([2.02, 0.02]).to('mps')) #FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=True).to(device)
+        loss_function = lambda pred, tar : criterion(torch.stack((1-pred, pred)).view(1, 2, 224,224), torch.stack((1-tar, tar)).view(1,2,224,224))
         for epoch in range(num_epochs):
             losses = {
                 'train': [],
@@ -47,6 +47,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 'train': [],
                 'val': []
             }
+            last = None
             # Setup progress bars
             dataloader = dataloaders['train'][0](*dataloaders['train'][1])
             progress_bar_train = tqdm(dataloader)
@@ -57,6 +58,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
+                # print((targets.sum(dim=[1,2]) / (targets.shape[1] * targets.shape[2])).mean())
                 # Make predictions
                 predictions = model(batch, targets)
                 # Compute loss
@@ -83,23 +85,23 @@ def training_loop(num_epochs, dataloaders, models, device):
                                                    f" MIN AND MAX: {predictions.min().item():.3f}, {predictions.max().item():.3f} | ")
 
             # Validate the model
-            dataloader = dataloaders['val'][0](*dataloaders['val'][1])
-            progress_bar_val = tqdm(dataloader)
-            progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
-            total_loss_val = 0
-            model.training = False
-            for batch, _, targets, _ in progress_bar_val:
-                batch = batch.to(device)
-                targets = targets.to(device)
-                with torch.no_grad():
-                    predictions = model(batch, targets)
-                    loss = loss_function(predictions, targets)
-                    total_loss_val += torch.mean(loss).item()
-                    losses['val'].append(loss.item())
-                    intersect_over_union = iou(predictions, targets).item()
-                    ious['val'].append(intersect_over_union)
-            total_loss_val /= len(progress_bar_val)
-            print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+            # dataloader = dataloaders['val'][0](*dataloaders['val'][1])
+            # progress_bar_val = tqdm(dataloader)
+            # progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
+            # total_loss_val = 0
+            # model.training = False
+            # for batch, _, targets, _ in progress_bar_val:
+            #     batch = batch.to(device)
+            #     targets = targets.to(device)
+            #     with torch.no_grad():
+            #         predictions = model(batch, targets)
+            #         loss = loss_function(predictions, targets)
+            #         total_loss_val += torch.mean(loss).item()
+            #         losses['val'].append(loss.item())
+            #         intersect_over_union = iou(predictions, targets).item()
+            #         ious['val'].append(intersect_over_union)
+            # total_loss_val /= len(progress_bar_val)
+            # print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
             path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{epoch}.model")
             torch.save(model.state_dict(), path)
             os.makedirs(os.path.join(models[model_name]['path'], 'stats'), exist_ok=True)
@@ -128,7 +130,7 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 32
+    batch_size = 1
     culane_dataloader = {
         'train': (get_dataloader, ('train', batch_size, 10, True)),
         'val': (get_dataloader, ('val', batch_size, 100, True)),

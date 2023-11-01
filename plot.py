@@ -97,15 +97,15 @@ def plot_iou_across_frame(model, batch_size, loader, threshold=0.5):
     plt.show()
 
 if __name__ == '__main__':
-    epoch = 6
-    max_epochs = 4
-    path = "./models/checkpoints/vitt/stats/loss_model_1698819516_vitt_{epoch}.json"
+    epoch = 0
+    max_epochs = 46
+    path = "./models/checkpoints/vitt/stats/loss_model_1698863414_vitt_{epoch}.json"
     # plot_one_epoch(path, epoch, '{mode} loss', 'Median {mode} loss', title="{mode} loss of ViTT during epoch {epoch}",
     #                x_axis="batch number", y_axis="Binary Cross Entropy")
     plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
                 "Epoch number", "Focal Loss poly")
     # IoU
-    path = "./models/checkpoints/vitt/stats/iou_model_1698819516_vitt_{epoch}.json"
+    path = "./models/checkpoints/vitt/stats/iou_model_1698863414_vitt_{epoch}.json"
     # plot_one_epoch(path, epoch, '{mode} IoU', 'Median {mode} IoU', title="IoU on {mode} set of ViTT during epoch {epoch}",
     #                x_axis="batch number",
     #                y_axis="IoU")

@@ -35,7 +35,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=0, lr=0.01)
+        optimizer = AdamW(model.parameters(), weight_decay=0, lr=1e-5)
         criterion = torch.nn.BCELoss() #FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=True).to(device)
         loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
         for epoch in range(num_epochs):
@@ -128,10 +128,10 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 32
+    batch_size = 4
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 10, True)),
-        'val': (get_dataloader, ('val', batch_size, 100, True)),
+        'train': (get_dataloader, ('train', batch_size, 1, True)),
+        'val': (get_dataloader, ('val_10', batch_size, 100, True)),
         'test': (get_dataloader, ('test', batch_size, 100, True))
     }
     models = {

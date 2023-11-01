@@ -14,6 +14,7 @@ from culane.lane_dataset_loader import LaneDatasetLoader
 SPLIT_FILES = {
     'train': "list/train.txt",
     'val': 'list/val.txt',
+    'val_10': 'list/val_10.txt',
     'test': "list/test.txt",
     'normal': 'list/test_split/test0_normal.txt',
     'crowd': 'list/test_split/test1_crowd.txt',

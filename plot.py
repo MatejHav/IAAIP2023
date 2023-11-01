@@ -97,23 +97,23 @@ def plot_iou_across_frame(model, batch_size, loader, threshold=0.5):
     plt.show()
 
 if __name__ == '__main__':
-    # epoch = 6
-    # max_epochs = 15
-    # path = "./models/checkpoints/vitt/stats/loss_model_1698730409_vitt_{epoch}.json"
-    # # plot_one_epoch(path, epoch, '{mode} loss', 'Median {mode} loss', title="{mode} loss of ViTT during epoch {epoch}",
-    # #                x_axis="batch number", y_axis="Binary Cross Entropy")
-    # plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
-    #             "Epoch number", "Focal Loss poly")
-    # # IoU
-    # path = "./models/checkpoints/vitt/stats/iou_model_1698730409_vitt_{epoch}.json"
-    # # plot_one_epoch(path, epoch, '{mode} IoU', 'Median {mode} IoU', title="IoU on {mode} set of ViTT during epoch {epoch}",
-    # #                x_axis="batch number",
-    # #                y_axis="IoU")
-    # plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
-    #             "Epoch number", "IoU")
-    from models.model_collection import get_vitt
-
-    backbone, model = get_vitt(None)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698730409_vitt_15.model')
-    model.load_state_dict(state_dict)
-    plot_iou_across_frame(model, 32, get_dataloader('train', 32, 10, True))
+    epoch = 6
+    max_epochs = 4
+    path = "./models/checkpoints/vitt/stats/loss_model_1698819516_vitt_{epoch}.json"
+    # plot_one_epoch(path, epoch, '{mode} loss', 'Median {mode} loss', title="{mode} loss of ViTT during epoch {epoch}",
+    #                x_axis="batch number", y_axis="Binary Cross Entropy")
+    plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
+                "Epoch number", "Focal Loss poly")
+    # IoU
+    path = "./models/checkpoints/vitt/stats/iou_model_1698819516_vitt_{epoch}.json"
+    # plot_one_epoch(path, epoch, '{mode} IoU', 'Median {mode} IoU', title="IoU on {mode} set of ViTT during epoch {epoch}",
+    #                x_axis="batch number",
+    #                y_axis="IoU")
+    plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
+                "Epoch number", "IoU")
+    # from models.model_collection import get_vitt
+    #
+    # backbone, model = get_vitt(None)
+    # state_dict = torch.load('models/checkpoints/vitt/model_1698730409_vitt_15.model')
+    # model.load_state_dict(state_dict)
+    # plot_iou_across_frame(model, 32, get_dataloader('train', 32, 10, True))

@@ -12,9 +12,10 @@ from models.models_mae import *
 from main import get_dataloader
 from models.positional_encoder.pe import PositionalEncoding
 
+
 class ViTT(nn.Module):
 
-    def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=4, *args, **kwargs):
+    def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=2, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out = out_dim
         self.vit = mae_vit_base_patch16()
@@ -23,7 +24,7 @@ class ViTT(nn.Module):
             self.vit.state_dict()[key] = state_dict[key]
             self.vit.state_dict()[key].requires_grad = False
         self.pe = PositionalEncoding(d_model=d_model)
-        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=256, batch_first=True)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=d_model, batch_first=True)
         decoder_norm = nn.LayerNorm(d_model, *args, **kwargs)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm)
         self.down_sampler = nn.Sequential(
@@ -36,27 +37,39 @@ class ViTT(nn.Module):
         self.up_sampler = nn.Sequential(
             nn.UpsamplingBilinear2d(size=out_dim)
         )
+        self.resize = Resize((48, 48))
         self.dropout = nn.Dropout(dropout)
         self.sigmoid = nn.Sigmoid()
         self.device = device
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, targets: torch.Tensor):
         # MAE outputs the reconstructed image
         memory = self.vit(x)
         memory = self.down_sampler(memory).mean(dim=1)
         B, H, W = memory.shape
         memory = memory.view(B, 1, H * W)
         memory = self.pe(memory).view(B, H * W)
-        target = torch.zeros(1, H * W, device=x.device)
-        # Pass segments through the decoder
-        outputs = []
-        mask = torch.zeros(1, B, device=x.device)
-        for i in range(B):
-            mask[0, i] = 1
-            target = self.decoder(target, memory, memory_mask=mask)
-            # Add to outputs and add 1 channel
-            outputs.append(target.view(1, H, W))
-        result = torch.stack(outputs)
+        # Initial target is unknown
+        if self.training:
+            target = torch.zeros(1, H * W, device=x.device)
+            targets = self.resize(targets).view(B, H * W)
+            targets = torch.concat((target, targets), dim=0)[:-1]
+            # Pass segments through the decoder
+            memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            tgt_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            result = self.decoder(targets, memory, memory_mask=memory_mask, tgt_mask=tgt_mask).view(B, 1, H, W)
+        else:
+            target = torch.zeros(1, H * W, device=x.device)
+            # Pass segments through the decoder
+            memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            tgt_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            result = []
+            for i in range(B):
+                target = self.decoder(target.view(1, 1, H * W), memory,
+                                      memory_mask=memory_mask[i].view(1, B),
+                                      tgt_mask=tgt_mask[i].view(1, B)).view(1, H, W)
+                result.append(target)
+            result = torch.stack(result)
         result = self.up_sampler(result).view(B, *self.out)
         return self.sigmoid(result)
 

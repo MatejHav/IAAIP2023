@@ -67,11 +67,11 @@ if __name__ == '__main__':
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
     backbone, model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698730409_vitt_15.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698779018_vitt_10.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
-    threshold = 0.5
+    threshold = 0.45
 
     for i, (images, masked_images, masks, idx) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS

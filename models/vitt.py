@@ -27,8 +27,7 @@ class ViTT(nn.Module):
             self.vit.state_dict()[key] = state_dict[key]
             self.vit.state_dict()[key].requires_grad = False
         self.pe = PositionalEncoding(d_model=d_model)
-        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=128, batch_first=True)
-        decoder_norm = nn.LayerNorm(d_model, *args, **kwargs)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=d_model, batch_first=True)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, None)
         self.down_sampler = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=3, kernel_size=7, stride=2),

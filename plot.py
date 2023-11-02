@@ -66,7 +66,7 @@ def plot_epochs(path, train_label, val_label, title, max_epoch, x_axis, y_axis):
     # plt.savefig(f'./results/stat_{int(time.time()*10000)}.jpg')
     plt.show()
 
-def plot_iou_across_frame(model, batch_size, loader, threshold=0.5):
+def plot_iou_across_frame(model, batch_size, loader, training=False, threshold=0.5):
     if torch.cuda.is_available():
         device = torch.device("cuda")
         print("CUDA RECOGNIZED.")
@@ -77,13 +77,14 @@ def plot_iou_across_frame(model, batch_size, loader, threshold=0.5):
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
     model.to(device)
+    model.training = training
 
     scores = np.zeros(batch_size)
     for batch, _, targets, _ in tqdm(loader):
         batch = batch.to(device)
         targets = targets.to(device)
         with torch.no_grad():
-            pred = model(batch)
+            pred = model(batch, targets)
             up = torch.logical_and(pred >= threshold, targets >= threshold).sum(dim=[1, 2])
             down = torch.logical_or(pred >= threshold, targets >= threshold).sum(dim=[1, 2])
             iou = (up + 1e-6) / (down + 1e-6)
@@ -91,29 +92,29 @@ def plot_iou_across_frame(model, batch_size, loader, threshold=0.5):
     scores /= len(loader)
 
     plt.plot(scores)
-    plt.title(f'IoU over frames of a video computed with threshold of {threshold}')
+    plt.title(f'IoU over frames with threshold of {threshold}, training set to {training}')
     plt.xlabel('Frame number')
     plt.ylabel('Mean IoU')
     plt.show()
 
 if __name__ == '__main__':
-    epoch = 0
-    max_epochs = 46
-    path = "./models/checkpoints/vitt/stats/loss_model_1698863414_vitt_{epoch}.json"
+    # epoch = 0
+    # max_epochs = 11
+    # path = "./models/checkpoints/vitt/stats/loss_model_1698870738_vitt_{epoch}.json"
     # plot_one_epoch(path, epoch, '{mode} loss', 'Median {mode} loss', title="{mode} loss of ViTT during epoch {epoch}",
     #                x_axis="batch number", y_axis="Binary Cross Entropy")
-    plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
-                "Epoch number", "Focal Loss poly")
+    # plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
+                # "Epoch number", "1 - soft IoU")
     # IoU
-    path = "./models/checkpoints/vitt/stats/iou_model_1698863414_vitt_{epoch}.json"
+    # path = "./models/checkpoints/vitt/stats/iou_model_1698870738_vitt_{epoch}.json"
     # plot_one_epoch(path, epoch, '{mode} IoU', 'Median {mode} IoU', title="IoU on {mode} set of ViTT during epoch {epoch}",
     #                x_axis="batch number",
     #                y_axis="IoU")
-    plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
-                "Epoch number", "IoU")
-    # from models.model_collection import get_vitt
-    #
-    # backbone, model = get_vitt(None)
-    # state_dict = torch.load('models/checkpoints/vitt/model_1698730409_vitt_15.model')
-    # model.load_state_dict(state_dict)
-    # plot_iou_across_frame(model, 32, get_dataloader('train', 32, 10, True))
+    # plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
+    #             "Epoch number", "IoU")
+    from models.model_collection import get_vitt
+
+    backbone, model = get_vitt(None)
+    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_9.model')
+    model.load_state_dict(state_dict)
+    plot_iou_across_frame(model, 8, get_dataloader('val', 8, 100, True), training=False)

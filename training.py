@@ -35,8 +35,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         backbone, model = models[model_name]['model']
         backbone.to(device)
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=0, lr=1e-5)
-        criterion = torch.nn.BCELoss() #FocalLoss_poly(alpha=0.2, gamma=2, epsilon=0.1, size_average=True).to(device)
+        optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=1e-5)
         loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
         for epoch in range(num_epochs):
             losses = {
@@ -75,10 +74,10 @@ def training_loop(num_epochs, dataloaders, models, device):
                 ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.3f} |"
                                                    f" MEDIAN LOSS: {np.median(losses['train']):.3f} |"
-                                                   f" RUNNING LOSS: {np.mean(losses['train'][max(0, len(losses['train']) - 100):]):.3f} |"
+                                                   f" RUNNING LOSS: {np.mean(losses['train'][max(0, len(losses['train']) - int(0.1*len(loader))):]):.3f} |"
                                                    f" IOU: {intersect_over_union:.3f} |"
                                                    f" BEST IOU: {max(ious['train']):.3f} |"
-                                                   f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - 100):]):.3f} | "
+                                                   f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - int(0.1*len(loader))):]):.3f} | "
                                                    f" MAX STD ACROSS BATCH: {predictions.std(dim=0).max().item():.3f} | "
                                                    f" MIN AND MAX: {predictions.min().item():.3f}, {predictions.max().item():.3f} | ")
 
@@ -128,10 +127,10 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 4
+    batch_size = 8
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 1, True)),
-        'val': (get_dataloader, ('val_10', batch_size, 100, True)),
+        'train': (get_dataloader, ('train', batch_size, 100, True)),
+        'val': (get_dataloader, ('val', batch_size, 100, True)),
         'test': (get_dataloader, ('test', batch_size, 100, True))
     }
     models = {

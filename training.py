@@ -20,7 +20,7 @@ def iou(pred: torch.Tensor, tar: torch.Tensor, threshold=0.5):
     down = torch.logical_or(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
     return ((up + 1e-6) / (down + 1e-6)).mean()
 
-def iou_loss(pred: torch.Tensor, tar: torch.Tensor, threshold=0.5):
+def iou_loss(pred: torch.Tensor, tar: torch.Tensor):
     up = (pred * tar).sum(dim=[1, 2])
     down = (0.5 * pred + 0.5 * tar).sum(dim=[1, 2])
     return ((up + 1e-6) / (down + 1e-6)).mean()
@@ -34,7 +34,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         saved_time = int(time.time())
         model = models[model_name]['model']
         model.to(device)
-        optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=1e-5)
+        optimizer = AdamW(model.parameters(), weight_decay=1e-7, lr=1e-5)
         loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
         for epoch in range(num_epochs):
             losses = {

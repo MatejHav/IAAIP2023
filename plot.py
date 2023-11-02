@@ -13,17 +13,19 @@ def plot_one_epoch(path, epoch, label, median_label, title, x_axis, y_axis):
     stat = json.load(open(path.format(epoch=epoch), 'r'))
     y = stat['train']
     plt.plot(y, label=label.format(mode='Train'))
-    plt.plot([np.median(stat['train'][:i + 1]) for i in range(len(stat['train']))], label=median_label.format(mode='Train'))
+    plt.plot([np.median(stat['train'][:i + 1]) for i in range(len(stat['train']))],
+             label=median_label.format(mode='Train'))
     plt.legend()
     plt.xlabel(x_axis)
     plt.ylabel(y_axis)
-    plt.ylim(0.9*np.min(y), 1.1 * np.max(y))
+    plt.ylim(0.9 * np.min(y), 1.1 * np.max(y))
     plt.title(title.format(mode='Train', epoch=epoch))
     plt.show()
 
     y = stat['val']
     plt.plot(y, label=label.format(mode='Validation'))
-    plt.plot([np.median(stat['val'][:i + 1]) for i in range(len(stat['val']))], label=median_label.format(mode='Validation'))
+    plt.plot([np.median(stat['val'][:i + 1]) for i in range(len(stat['val']))],
+             label=median_label.format(mode='Validation'))
     plt.legend()
     plt.xlabel(x_axis)
     plt.ylabel(y_axis)
@@ -66,6 +68,7 @@ def plot_epochs(path, train_label, val_label, title, max_epoch, x_axis, y_axis):
     # plt.savefig(f'./results/stat_{int(time.time()*10000)}.jpg')
     plt.show()
 
+
 def plot_iou_across_frame(model, batch_size, loader, training=False, threshold=0.5):
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -97,8 +100,9 @@ def plot_iou_across_frame(model, batch_size, loader, training=False, threshold=0
     plt.ylabel('Mean IoU')
     plt.show()
 
+
 if __name__ == '__main__':
-    max_epochs = 14
+    max_epochs = 18
     path = "./models/checkpoints/vitt/stats/loss_model_1698870738_vitt_{epoch}.json"
     plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
                 "Epoch number", "1 - soft IoU")

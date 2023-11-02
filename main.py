@@ -1,6 +1,3 @@
-import gc
-
-import torch
 from culane.lane_dataset import LaneDataset, IMAGENET_MEAN, IMAGENET_STD
 from torch.utils.data import DataLoader
 import random
@@ -8,11 +5,6 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import cv2
-import imgaug.augmenters as iaa
-from scipy import ndimage
-import torchvision.transforms.functional as TF
-
-from models.vit_autoencoder import ViTAutoencoder
 
 
 def _worker_init_fn_(_):
@@ -61,7 +53,7 @@ if __name__ == '__main__':
         print("NO GPU RECOGNIZED.")
     batch_size = 1
     root = './culane/data/'
-    dataset = LaneDataset(split='train', root=root, subset=10, normalize=True)
+    dataset = LaneDataset(split='val', root=root, subset=100, normalize=True)
     loader = DataLoader(dataset=dataset,
                         batch_size=batch_size,
                         shuffle=False,
@@ -69,10 +61,10 @@ if __name__ == '__main__':
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
     model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_13.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_17.model')
     model.load_state_dict(state_dict)
     model.to(device)
-    model.training = False
+    model.training = True
     threshold = 0.5
 
     for i, (images, masks) in enumerate(pbar):

@@ -19,9 +19,16 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30, shuffle=True):
     root = './culane/data/'
     dataset = LaneDataset(split=split, root=root, subset=subset, normalize=True)
+
+    if not shuffle:
+        loader = DataLoader(dataset=dataset,
+                            batch_size=batch_size,
+                            shuffle=False,
+                            worker_init_fn=_worker_init_fn_)
+        return loader
     batch_sampler = np.arange(0, len(dataset))
     batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
                                                   (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
@@ -33,6 +40,10 @@ def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
                         worker_init_fn=_worker_init_fn_)
     return loader
 
+def compute_iou(pred, tar, threshold=0.5):
+    up = torch.logical_and(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    down = torch.logical_or(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    return (up / (down + 1e-6)).mean().item()
 
 idx = 0
 
@@ -46,68 +57,49 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    batch_size = 30
+    batch_size = 1
     root = './culane/data/'
     dataset = LaneDataset(split='train', root=root, subset=10, normalize=True)
-    batch_sampler = np.arange(0, len(dataset))
-    batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
-                                                  (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
-                           mode='constant', constant_values=0)
-    batch_sampler = batch_sampler.reshape((len(dataset) // batch_size + 1, batch_size))
-    np.random.shuffle(batch_sampler)
     loader = DataLoader(dataset=dataset,
-                        batch_sampler=batch_sampler,
+                        batch_size=batch_size,
+                        shuffle=False,
                         worker_init_fn=_worker_init_fn_)
     pbar = tqdm(loader)
-    # backbone = Backbone('resnet34')
-    # backbone.to(device)
     from models.model_collection import get_vitt
-    backbone, model = torch.nn.Identity(), ViTAutoencoder()
-    state_dict = torch.load('./models/checkpoints/pretrained_vit/pretrained_vit_6.model')
+    backbone, model = get_vitt(device)
+    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_8.model')
     model.load_state_dict(state_dict)
     backbone.to(device)
     model.to(device)
-    last = None
-    sample_size = 100
-    truth_color = [(1,0,0), (1,0.3,0), (1,0.6,0), (1,1,0)]
-    pred_color = [(0,0,1), (0,0.3,1), (0,0.6,1), (0,1,1)]
+    model.training = True
+    threshold = 0.5
+
     for i, (images, masked_images, masks, idx) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
         masks = masks.to(device)
         with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments).view(batch_size, 3, 576, 576)
+            labels = model(images, masks)
         labels = labels.cpu()
         masks = masks.cpu()
-        if last is None:
-            last = labels
-        else:
-            last = labels
+        print(f'IoU: {compute_iou(labels, masks, threshold=threshold):.3f}')
 
         batch_size = images.shape[0]
         for j, img in enumerate(images):
-            # y, x = np.where(labels[j] >= 0.5)
-            # y_gt, x_gt = np.where(masks[j] >= 0.5)
-            # y_over, x_over = np.where(np.logical_and(labels[j] >= 0.5, masks[j] >= 0.5))
+            y, x = np.where(labels[j] >= threshold)
+            y_gt, x_gt = np.where(masks[j] >= threshold)
+            y_over, x_over = np.where(np.logical_and(labels[j] >= threshold, masks[j] >= threshold))
             img = img.cpu().numpy()
             img = np.transpose(img, axes=[1, 2, 0])
-            # img = img * IMAGENET_STD + IMAGENET_MEAN
-            masked = masked_images[j].cpu().numpy()
-            masked = np.transpose(masked, axes=[1, 2, 0])
-            masked = masked * IMAGENET_STD + IMAGENET_MEAN
-            # img[y, x, 0] = labels[j, y, x]
-            # img[y, x, 1] = 0
-            # img[y, x, 2] = 0
-            # img[y_gt, x_gt, 0] = 0
-            # img[y_gt, x_gt, 1] = 1
-            # img[y_gt, x_gt, 2] = 0
-            # img[y_over, x_over, 0] = 0
-            # img[y_over, x_over, 1] = 0
-            # img[y_over, x_over, 2] = 1
+            img = img * IMAGENET_STD + IMAGENET_MEAN
+            img[y, x, 0] = (labels[j, y, x] - labels[j].min()) / labels[j].max()
+            img[y, x, 1] = 0
+            img[y, x, 2] = 0
+            img[y_gt, x_gt, 0] = 0
+            img[y_gt, x_gt, 1] = 1
+            img[y_gt, x_gt, 2] = 0
+            img[y_over, x_over, 0] = 0
+            img[y_over, x_over, 1] = 0
+            img[y_over, x_over, 2] = 1
             cv2.imshow('original', img)
-            cv2.imshow('masked', masked)
-            label = labels[j].cpu().numpy()
-            label = np.transpose(label, axes=[1, 2, 0])
-            cv2.imshow('output', label)
-            cv2.waitKey(50)
+            cv2.waitKey(500)

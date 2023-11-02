@@ -19,13 +19,13 @@ class FocalLoss_poly(nn.Module):
         self.num_classes=num_classes
         self.size_average = size_average
 
-    def forward(self, pred1, target):
-        pred = nn.Sigmoid()(pred1)
-        pred = torch.stack((1 - pred, pred)).view(30, 2, 320, 800)
+    def forward(self, pred, target):
+        # pred = nn.Sigmoid()(pred1)
+        pred = torch.stack((1 - pred, pred)).view(pred.shape[0], 2, *pred.shape[1:])
         p=pred
         target = target.long()
         target1 = F.one_hot(target.unsqueeze(1), self.num_classes).transpose(1, -1).squeeze_(-1)
-        target1 = target1.to(device=pred1.device,dtype=pred1.dtype)
+        target1 = target1.to(device=pred.device,dtype=pred.dtype)
         pt=target1*p +(1-target1)* (1-p)
         # print(pt.shape)
         p = p.view(-1,1)

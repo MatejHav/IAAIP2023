@@ -2,11 +2,26 @@ import torch.nn
 import torchvision.transforms
 
 from models.vitt import ViTT
+from models.vit_autoencoder import ViTAutoencoder
 
+from models.models_mae import *
+
+class Mean(torch.nn.Module):
+
+    def forward(self, x):
+        return x.mean(dim=1)
 
 def get_vitt(device):
-    vitt = ViTT(d_model=200, out_dim=(320, 800), nhead=5, device=device)
-    vitt.to(device)
-    transforms = torchvision.transforms.Resize(size=(576, 576))
-    backbone = torch.nn.Sequential(transforms, torch.load('./models/backbone/encoder.model'))
-    return backbone, vitt
+    model = ViTT(d_model=2304, out_dim=(224, 224), nhead=1, device=device)
+    # state_dict = torch.load('./models/checkpoints/vitt/model_1698863414_vitt_45.model')
+    # model.load_state_dict(state_dict)
+    return torch.nn.Identity(), model
+
+def get_vit_autoencoder(device):
+    vit_autoencoder = ViTAutoencoder()
+    # state_dict = torch.load('./models/checkpoints/VitAutoEncoder.model')
+    # vit_autoencoder.load_state_dict(state_dict)
+    state_dict = torch.load('./models/checkpoints/vitt/model_1698322627_vitt_9.model')
+    model = torch.nn.Sequential(vit_autoencoder, Mean())
+    model.load_state_dict(state_dict)
+    return torch.nn.Identity(), model

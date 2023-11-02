@@ -13,8 +13,8 @@ class Mean(torch.nn.Module):
 
 def get_vitt(device):
     model = ViTT(d_model=2304, out_dim=(224, 224), nhead=1, device=device)
-    state_dict = torch.load('./models/checkpoints/vitt/model_1698837604_vitt_4.model')
-    model.load_state_dict(state_dict)
+    # state_dict = torch.load('./models/checkpoints/vitt/model_1698863414_vitt_45.model')
+    # model.load_state_dict(state_dict)
     return torch.nn.Identity(), model
 
 def get_vit_autoencoder(device):

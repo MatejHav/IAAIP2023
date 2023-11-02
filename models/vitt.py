@@ -25,7 +25,7 @@ class ViTT(nn.Module):
         state_dict = torch.load('./models/checkpoints/mae_pretrain_vit_base.pth')['model']
         for key in state_dict:
             self.vit.state_dict()[key] = state_dict[key]
-            # self.vit.state_dict()[key].requires_grad = False
+            self.vit.state_dict()[key].requires_grad = False
         self.pe = PositionalEncoding(d_model=d_model)
         decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=d_model, batch_first=True)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, None)

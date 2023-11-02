@@ -81,7 +81,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
             total_loss_val = 0
             model.training = False
-            for batch, _, targets, _ in progress_bar_val:
+            for batch, targets in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)
                 with torch.no_grad():

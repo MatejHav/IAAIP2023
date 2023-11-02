@@ -69,10 +69,10 @@ if __name__ == '__main__':
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
     model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_8.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_13.model')
     model.load_state_dict(state_dict)
     model.to(device)
-    model.training = True
+    model.training = False
     threshold = 0.5
 
     for i, (images, masks) in enumerate(pbar):

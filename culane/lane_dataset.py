@@ -161,7 +161,7 @@ class LaneDataset(Dataset):
             p = 0 if np.random.random() < 0.5 else 1
             self.augmentations[video_path] = [
                 (y, x),
-                T.RandomRotation(degrees=(degree-2, degree+2)),
+                T.RandomRotation(degrees=(degree-0.5, degree+0.5)),
                 T.RandomHorizontalFlip(p=p)
             ]
         img, mask = self.apply_augmentations(video_path, img, mask)

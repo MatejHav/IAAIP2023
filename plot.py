@@ -80,7 +80,7 @@ def plot_iou_across_frame(model, batch_size, loader, training=False, threshold=0
     model.training = training
 
     scores = np.zeros(batch_size)
-    for batch, _, targets, _ in tqdm(loader):
+    for batch, targets in tqdm(loader):
         batch = batch.to(device)
         targets = targets.to(device)
         with torch.no_grad():
@@ -98,23 +98,17 @@ def plot_iou_across_frame(model, batch_size, loader, training=False, threshold=0
     plt.show()
 
 if __name__ == '__main__':
-    # epoch = 0
-    # max_epochs = 11
-    # path = "./models/checkpoints/vitt/stats/loss_model_1698870738_vitt_{epoch}.json"
-    # plot_one_epoch(path, epoch, '{mode} loss', 'Median {mode} loss', title="{mode} loss of ViTT during epoch {epoch}",
-    #                x_axis="batch number", y_axis="Binary Cross Entropy")
-    # plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
-                # "Epoch number", "1 - soft IoU")
-    # IoU
-    # path = "./models/checkpoints/vitt/stats/iou_model_1698870738_vitt_{epoch}.json"
-    # plot_one_epoch(path, epoch, '{mode} IoU', 'Median {mode} IoU', title="IoU on {mode} set of ViTT during epoch {epoch}",
-    #                x_axis="batch number",
-    #                y_axis="IoU")
-    # plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
-    #             "Epoch number", "IoU")
-    from models.model_collection import get_vitt
+    max_epochs = 14
+    path = "./models/checkpoints/vitt/stats/loss_model_1698870738_vitt_{epoch}.json"
+    plot_epochs(path, '{stat} Train Loss', '{stat} Validation Loss', "Loss of ViTT over multiple epochs", max_epochs,
+                "Epoch number", "1 - soft IoU")
 
-    backbone, model = get_vitt(None)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_9.model')
-    model.load_state_dict(state_dict)
-    plot_iou_across_frame(model, 8, get_dataloader('val', 8, 100, True), training=False)
+    path = "./models/checkpoints/vitt/stats/iou_model_1698870738_vitt_{epoch}.json"
+    plot_epochs(path, '{stat} Train IoU', '{stat} Validation IoU', "IoU of ViTT over multiple epochs", max_epochs,
+                "Epoch number", "IoU")
+    # from models.model_collection import get_vitt
+    #
+    # backbone, model = get_vitt(None)
+    # state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_9.model')
+    # model.load_state_dict(state_dict)
+    # plot_iou_across_frame(model, 8, get_dataloader('val', 8, 100, True), training=False)

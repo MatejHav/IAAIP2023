@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import numpy as np
 import imgaug.augmenters as iaa
@@ -7,6 +9,9 @@ from imgaug.augmenters import Resize
 from timm.models.vision_transformer import PatchEmbed
 from torch import nn
 from torchvision import transforms
+import torchvision.transforms as T
+from scipy import ndimage
+from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataset import Dataset
 
@@ -22,112 +27,42 @@ GROUND_TRUTH_GRID = (64, 160)
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
 #
 
+def adjust_ground_truth(img, item, augmentation, angle=None):
+    lanes = item['lanes']
+    for lane in lanes:
+        for i in range(len(lane)):
+            match augmentation:
+                case 'flip':
+                    lane[i] = (img.shape[1] - lane[i][0], lane[i][1])
+                case _:
+                    raise Exception
+
+
 class LaneDataset(Dataset):
-    """
-    A PyTorch dataset class to handle lane detection data. 
-    It abstracts the data loading, preprocessing, augmentation, and conversion to model-friendly formats.
-
-    Args:
-            S (int): Number of strips.
-            dataset (str): Dataset type ('culane' supported).
-            augmentations (list): List of data augmentation configurations.
-            normalize (bool): Whether to normalize image data.
-            img_size (tuple): Tuple representing the image size (height, width).
-            aug_chance (float): Probability of applying augmentations.
-            **kwargs: Additional keyword arguments.
-
-    ttributes:
-            annotations: List of dataset annotations.
-            n_strips (int): Number of strips.
-            n_offsets (int): Number of offsets.
-            strip_size (float): Size of each strip.
-            img_h (int): Image height.
-            img_w (int): Image width.
-
-    Methods:
-            transform_annotations(): Transform dataset annotations to the model's target format.
-            filter_lane(lane): Filter duplicate Y-coordinates from a lane.
-            transform_annotation(anno, img_wh=None): Transform an annotation to the model's target format.
-            sample_lane(points, sample_ys): Sample points along a lane.
-            label_to_lanes(label): Convert labels to lane objects.
-            draw_annotation(idx, label=None, pred=None, img=None): Visualize annotations and predictions on an image.
-            lane_to_linestrings(lanes): Convert lanes to LineString objects.
-            linestrings_to_lanes(lines): Convert LineString objects to lanes.
-            __getitem__(idx): Retrieve an item (image and label) from the dataset.
-            __len__(): Get the length of the dataset.
-    """
 
     def __init__(self,
-                 S=72,
                  dataset='culane',
-                 augmentations=None,
                  normalize=False,
-                 img_size=(224, 224),
-                 aug_chance=1.,
+                 img_size=(550, 550),
+                 resize_size=(224, 224),
                  **kwargs):
-        """
-        Initialize the LaneDataset with specified parameters.
-
-        Args:
-            S (int): Number of strips. Images often have a high resolution along the vertical axis (height), especially in cases
-              where the road or lane stretches out ahead. Instead of processing the lane annotations or detecting lanes at each i
-              ndividual pixel row, it's computationally more efficient and sometimes more robust to split the image into horizontal
-                strips and detect lanes within these strips.
-                For instance, consider an image of height H. If S = 72, then each strip's height is H/71 (because n_strips = S - 1).
-                The lane detection algorithm will then only need to work with 71 strips as opposed to H individual rows, 
-                thus reducing computational complexity.
-
-                Within each strip, the algorithm might:
-
-                    Interpolate or extrapolate lane positions.
-                    Determine if a lane is present or not.
-                    Decide other lane-related characteristics.
-
-                By working with strips, the algorithm also becomes more robust against noise or small irregularities, since it processes a chunk of pixels together as opposed to individual rows.
-
-                In summary, S (and hence n_strips) allows the algorithm to work with a down-sampled version of the vertical axis of the image, making it both efficient and robust.
-            dataset (str): Dataset type ('culane' supported).
-            augmentations (list): List of data augmentation configurations.
-            normalize (bool): Whether to normalize image data.
-            img_size (tuple): Tuple representing the image size (height, width).
-            aug_chance (float): Probability of applying augmentations.
-            **kwargs: Additional keyword arguments.
-        """
         super(LaneDataset, self).__init__()
-        # if dataset == 'tusimple':
-        #     self.dataset = TuSimple(**kwargs)
         if dataset == 'culane':
             self.dataset = CULane(**kwargs)
-        # elif dataset == 'llamas':
-        #     self.dataset = LLAMAS(**kwargs)
-        # elif dataset == 'nolabel_dataset':
-        #     self.dataset = NoLabelDataset(**kwargs)
         else:
             raise NotImplementedError()
-        self.n_strips = S - 1
-        self.n_offsets = S
         self.normalize = normalize
         self.img_h, self.img_w = img_size
-        self.strip_size = self.img_h / self.n_strips
-
-        # y at each x offset
-        self.offsets_ys = np.arange(self.img_h, -1, -self.strip_size)
-
-        if augmentations is not None:
-            # add augmentations
-            augmentations = [getattr(iaa, aug['name'])(**aug['parameters'])
-                             for aug in augmentations]  # add augmentation
-        else:
-            augmentations = []
-
-        transformations = iaa.Sequential([Resize({'height': self.img_h, 'width': self.img_w})])
+        self.resized_h, self.resized_w = resize_size
+        self.resize = T.Resize(resize_size)
         self.to_tensor = ToTensor()
-        self.transform = iaa.Sequential([iaa.Sometimes(then_list=augmentations, p=aug_chance), transformations])
-        self.resizing_coordinates = {}
+        self.augmentations = {}
 
     @property
     def annotations(self):
         return self.dataset.annotations
+
+    # Method2 - Translating the point to a new coordinate system with the point of rotation being the origin
 
     def transform_annotations(self):
         """
@@ -155,8 +90,6 @@ class LaneDataset(Dataset):
 
         return filtered_lane
 
-
-
     def unpatchify(self, x):
         """
         x: (N, L, patch_size**2 *3)
@@ -170,88 +103,70 @@ class LaneDataset(Dataset):
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, w * p))
         return imgs
 
-    def random_masking(self, x, mask_ratio):
-        """
-        Perform per-sample random masking by per-sample shuffling.
-        Per-sample shuffling is done by argsort random noise.
-        x: [N, L, D], sequence
-        """  # (128, 256, 3)
-        x = torch.tensor(x)
-        x = x.unsqueeze(dim=0)
-        x = torch.einsum('nhwc->nchw', x)
-        x1 = x
-        x = x.float()
-        self.patch_embed = PatchEmbed((self.img_h, self.img_w), 16, 3, 768)
-        # embed patches
-        num_patches = self.patch_embed.num_patches
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, 768), requires_grad=False)
-        x = self.patch_embed(x)
-        # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
-        N, L, D = x.shape  # batch, length, dim
-        len_keep = int(L * (1 - mask_ratio))
-        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-        # sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-        # keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-        # generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([N, L], device=x.device)
-        mask[:, :len_keep] = 0
-        # unshuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
-        # visualize the mask
-        mask = mask.detach()
-        mask = mask.unsqueeze(-1).repeat(1, 1, self.patch_embed.patch_size[0] ** 2 * 3)  # (N, H*W, p*p*3)
-        # mask = mask.unsqueeze(dim=0)
-        mask = self.unpatchify(mask)  # 1 is removing, 0 is keeping
-        mask = torch.einsum('nchw->nhwc', mask).detach().cpu()
-        x1 = torch.einsum('nchw->nhwc', x1)
-        # masked image
-        im_masked = x1 * (1 - mask)
+    def create_mask(self, lanes):
+        mask = np.zeros((self.img_h, self.img_w, 3))
 
+        y, x = np.where(lanes[:, :, 2] >= 0.5)
 
-        return im_masked, mask, ids_restore
+        length = lanes[y, x, 0]
+        angle = lanes[y, x, 1]
+
+        x1 = (x / lanes.shape[1] * mask.shape[1]).astype(int)
+        y1 = (y / lanes.shape[0] * mask.shape[0]).astype(int)
+
+        x2 = ((x / lanes.shape[1] + np.cos(angle) * length) * mask.shape[1]).astype(int)
+        y2 = ((y / lanes.shape[0] + np.sin(angle) * length) * mask.shape[0]).astype(int)
+
+        temp = np.column_stack((x1, y1, x2, y2))
+
+        for x1, y1, x2, y2 in temp:
+            cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
+
+        return mask[:, :, 0].astype(np.float32)
+
+    def apply_augmentations(self, video_path, img, mask):
+        y, x = self.augmentations[video_path][0]
+        rotation = self.augmentations[video_path][1]
+        flip = self.augmentations[video_path][2]
+        img = rotation(flip(img))
+        mask = rotation(flip(mask.unsqueeze(0)))
+        img = img[:, y:y + self.img_h, x:x + self.img_w]
+        mask = mask[:, y:y + self.img_h, x:x + self.img_w]
+        img = self.resize(img)
+        mask = self.resize(mask).squeeze(0)
+        return img, mask
+
     def __getitem__(self, idx):
         item = self.dataset[idx]
 
         img = cv2.imread(item['path'])
         mask = self.dataset.create_mask(item['lanes'])
 
-        # Resize image
-        # img = cv2.resize(img, (self.img_w, self.img_h))
-        # mask = cv2.resize(mask, (self.img_w, self.img_h))
-        # To try to skew away from the underlying distribution, select random 320x800 position
-        # If we already tried to resize a frame from this video, resize it based on that
-        video_path = item['path'].split('/')[-2]
-        if video_path in self.resizing_coordinates:
-            y, x = self.resizing_coordinates[video_path]
-            print(item['path'])
-            img = img[y:y + self.img_h, x:x + self.img_w]
-            mask = mask[y:y + self.img_h, x:x + self.img_w]
-        else:
-            y = 250#np.random.randint(0, img.shape[0] - self.img_h)
-            x = 700#np.random.randint(0, img.shape[1] - self.img_w)
-            self.resizing_coordinates[video_path] = (y, x)
-            img = img[y:y + self.img_h, x:x + self.img_w]
-            mask = mask[y:y + self.img_h, x:x + self.img_w]
-
         # Standardize image
         img = img / 255
-        # original = img.copy()
-        # img = np.array(img)
-        # img, mask2, ids_restore = self.random_masking(img, mask_ratio=0.5)
-        # img = img.squeeze(dim=0)
         img = np.array(img)
         # Normalize image
         if self.normalize:
             img = (img - IMAGENET_MEAN) / IMAGENET_STD
+        # Convert to tensor
         img = self.to_tensor(img.astype(np.float32))
-        # original = self.to_tensor(original.astype(np.float32))
-        # original = img
-        return img, img, mask, idx
+        mask = torch.Tensor(mask)
+
+        # Resize image
+        video_path = item['path'].split('/')[-2]
+        if video_path not in self.augmentations:
+            y = np.random.randint(0, img.shape[1] - self.img_h)
+            x = np.random.randint(0, img.shape[2] - self.img_w)
+            degree = np.random.randint(-15, 15)
+            p = 0 if np.random.random() < 0.5 else 1
+            self.augmentations[video_path] = [
+                (y, x),
+                T.RandomRotation(degrees=(degree-2, degree+2)),
+                T.RandomHorizontalFlip(p=p)
+            ]
+        img, mask = self.apply_augmentations(video_path, img, mask)
+
+        return img, mask
 
     def __len__(self):
         return len(self.dataset)

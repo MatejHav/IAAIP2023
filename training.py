@@ -32,8 +32,7 @@ def training_loop(num_epochs, dataloaders, models, device):
         if not os.path.exists(models[model_name]['path']):
             os.mkdir(models[model_name]['path'])
         saved_time = int(time.time())
-        backbone, model = models[model_name]['model']
-        backbone.to(device)
+        model = models[model_name]['model']
         model.to(device)
         optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=1e-5)
         loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
@@ -46,28 +45,21 @@ def training_loop(num_epochs, dataloaders, models, device):
                 'train': [],
                 'val': []
             }
-            last = None
             # Setup progress bars
             dataloader = dataloaders['train'][0](*dataloaders['train'][1])
             progress_bar_train = tqdm(dataloader)
             progress_bar_train.set_description(f"[STARTING TRAINING] | ")
             model.training = True
-            for batch, _, targets, id in progress_bar_train:
+            for batch, targets in progress_bar_train:
                 optimizer.zero_grad()
                 # Load batch into memory
                 batch = batch.to(device)
                 targets = targets.to(device)
-                # print((targets.sum(dim=[1,2]) / (targets.shape[1] * targets.shape[2])).mean())
                 # Make predictions
                 predictions = model(batch, targets)
                 # Compute loss
                 loss = loss_function(predictions, targets)
-                if torch.any(torch.isnan(loss)):
-                    print(id)
-                    exit()
                 loss.backward()
-                # for param in model.parameters():
-                #     print(param.grad)
                 # Learn
                 optimizer.step()
                 # Save loss for printouts
@@ -76,31 +68,33 @@ def training_loop(num_epochs, dataloaders, models, device):
                 ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.3f} |"
                                                    f" MEDIAN LOSS: {np.median(losses['train']):.3f} |"
-                                                   f" RUNNING LOSS: {np.mean(losses['train'][max(0, len(losses['train']) - int(0.1*len(loader))):]):.3f} |"
+                                                   f" RUNNING LOSS: {np.mean(losses['train'][max(0, len(losses['train']) - int(0.1*len(dataloader))):]):.3f} |"
                                                    f" IOU: {intersect_over_union:.3f} |"
                                                    f" BEST IOU: {max(ious['train']):.3f} |"
-                                                   f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - int(0.1*len(loader))):]):.3f} | "
+                                                   f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - int(0.1*len(dataloader))):]):.3f} | "
                                                    f" MAX STD ACROSS BATCH: {predictions.std(dim=0).max().item():.3f} | "
                                                    f" MIN AND MAX: {predictions.min().item():.3f}, {predictions.max().item():.3f} | ")
 
             # Validate the model
-            # dataloader = dataloaders['val'][0](*dataloaders['val'][1])
-            # progress_bar_val = tqdm(dataloader)
-            # progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
-            # total_loss_val = 0
-            # model.training = False
-            # for batch, _, targets, _ in progress_bar_val:
-            #     batch = batch.to(device)
-            #     targets = targets.to(device)
-            #     with torch.no_grad():
-            #         predictions = model(batch, targets)
-            #         loss = loss_function(predictions, targets)
-            #         total_loss_val += torch.mean(loss).item()
-            #         losses['val'].append(loss.item())
-            #         intersect_over_union = iou(predictions, targets).item()
-            #         ious['val'].append(intersect_over_union)
-            # total_loss_val /= len(progress_bar_val)
-            # print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+            dataloader = dataloaders['val'][0](*dataloaders['val'][1])
+            progress_bar_val = tqdm(dataloader)
+            progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
+            total_loss_val = 0
+            model.training = False
+            for batch, _, targets, _ in progress_bar_val:
+                batch = batch.to(device)
+                targets = targets.to(device)
+                with torch.no_grad():
+                    predictions = model(batch, targets)
+                    loss = loss_function(predictions, targets)
+                    total_loss_val += torch.mean(loss).item()
+                    losses['val'].append(loss.item())
+                    intersect_over_union = iou(predictions, targets).item()
+                    ious['val'].append(intersect_over_union)
+            total_loss_val /= len(progress_bar_val)
+            print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+
+            # Save model and statistics
             path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{epoch}.model")
             torch.save(model.state_dict(), path)
             os.makedirs(os.path.join(models[model_name]['path'], 'stats'), exist_ok=True)

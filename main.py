@@ -8,6 +8,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import cv2
+import imgaug.augmenters as iaa
+from scipy import ndimage
+import torchvision.transforms.functional as TF
 
 from models.vit_autoencoder import ViTAutoencoder
 
@@ -45,7 +48,6 @@ def compute_iou(pred, tar, threshold=0.5):
     down = torch.logical_or(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
     return (up / (down + 1e-6)).mean().item()
 
-idx = 0
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -66,15 +68,14 @@ if __name__ == '__main__':
                         worker_init_fn=_worker_init_fn_)
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
-    backbone, model = get_vitt(device)
+    model = get_vitt(device)
     state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_8.model')
     model.load_state_dict(state_dict)
-    backbone.to(device)
     model.to(device)
     model.training = True
     threshold = 0.5
 
-    for i, (images, masked_images, masks, idx) in enumerate(pbar):
+    for i, (images, masks) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
         masks = masks.to(device)
@@ -102,4 +103,4 @@ if __name__ == '__main__':
             img[y_over, x_over, 1] = 0
             img[y_over, x_over, 2] = 1
             cv2.imshow('original', img)
-            cv2.waitKey(500)
+            cv2.waitKey(50)

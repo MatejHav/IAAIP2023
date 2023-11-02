@@ -6,16 +6,11 @@ from models.vit_autoencoder import ViTAutoencoder
 
 from models.models_mae import *
 
-class Mean(torch.nn.Module):
-
-    def forward(self, x):
-        return x.mean(dim=1)
-
 def get_vitt(device):
     model = ViTT(d_model=2304, out_dim=(224, 224), nhead=1, device=device)
     # state_dict = torch.load('./models/checkpoints/vitt/model_1698863414_vitt_45.model')
     # model.load_state_dict(state_dict)
-    return torch.nn.Identity(), model
+    return model
 
 def get_vit_autoencoder(device):
     vit_autoencoder = ViTAutoencoder()
@@ -24,4 +19,4 @@ def get_vit_autoencoder(device):
     state_dict = torch.load('./models/checkpoints/vitt/model_1698322627_vitt_9.model')
     model = torch.nn.Sequential(vit_autoencoder, Mean())
     model.load_state_dict(state_dict)
-    return torch.nn.Identity(), model
+    return model

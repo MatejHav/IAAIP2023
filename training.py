@@ -64,7 +64,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.3f} |"
                                                    f" MEAN LOSS: {np.mean(losses['train']):.3f} |"
-                                                   f" IOU: {intersect_over_union:.3f} |")
+                                                   f" MEAN IOU: {np.mean(ious['train']):.3f} |")
 
             # Validate the model
             dataloader = dataloaders['val'][0](*dataloaders['val'][1])

@@ -7,10 +7,6 @@ from torch.optim import AdamW
 from tqdm.auto import tqdm
 from main import *
 from models.model_collection import *
-from utils import FocalLoss_poly
-from torchvision.ops import sigmoid_focal_loss
-
-import torch.nn.functional as F
 
 
 def iou(pred: torch.Tensor, tar: torch.Tensor, threshold=0.5):
@@ -67,13 +63,8 @@ def training_loop(num_epochs, dataloaders, models, device):
                 losses['train'].append(loss.item())
                 ious['train'].append(intersect_over_union)
                 progress_bar_train.set_description(f"[TRAINING] | EPOCH {epoch} | LOSS: {loss.item():.3f} |"
-                                                   f" MEDIAN LOSS: {np.median(losses['train']):.3f} |"
-                                                   f" RUNNING LOSS: {np.mean(losses['train'][max(0, len(losses['train']) - int(0.1*len(dataloader))):]):.3f} |"
-                                                   f" IOU: {intersect_over_union:.3f} |"
-                                                   f" BEST IOU: {max(ious['train']):.3f} |"
-                                                   f" RUNNING IOU: {np.mean(ious['train'][max(0, len(ious['train']) - int(0.1*len(dataloader))):]):.3f} | "
-                                                   f" MAX STD ACROSS BATCH: {predictions.std(dim=0).max().item():.3f} | "
-                                                   f" MIN AND MAX: {predictions.min().item():.3f}, {predictions.max().item():.3f} | ")
+                                                   f" MEAN LOSS: {np.mean(losses['train']):.3f} |"
+                                                   f" IOU: {intersect_over_union:.3f} |")
 
             # Validate the model
             dataloader = dataloaders['val'][0](*dataloaders['val'][1])
@@ -123,7 +114,7 @@ if __name__ == "__main__":
 
     # Training Parameters
     num_epochs = 200
-    batch_size = 8
+    batch_size = 16
     culane_dataloader = {
         'train': (get_dataloader, ('train', batch_size, 100, True)),
         'val': (get_dataloader, ('val', batch_size, 100, True)),

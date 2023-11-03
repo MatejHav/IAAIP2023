@@ -78,12 +78,10 @@ def training_loop(num_epochs, dataloaders, models, device):
                 with torch.no_grad():
                     predictions = model(batch, targets)
                     loss = loss_function(predictions, targets)
-                    total_loss_val += torch.mean(loss).item()
                     losses['val'].append(loss.item())
                     intersect_over_union = iou(predictions, targets).item()
                     ious['val'].append(intersect_over_union)
-            total_loss_val /= len(progress_bar_val)
-            print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
+            print(f'EPOCH {epoch} | MEAN VALIDATION LOSS: {np.mean(losses["val"])} | MEAN VALIDATION IOU: {np.mean(ious["val"])}')
 
             # Save model and statistics
             path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{epoch}.model")

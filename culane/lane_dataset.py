@@ -105,8 +105,8 @@ class LaneDataset(Dataset):
         y, x = self.augmentations[video_path][0]
         rotation = self.augmentations[video_path][1]
         flip = self.augmentations[video_path][2]
-        img = rotation(flip(img))
-        mask = rotation(flip(mask.unsqueeze(0)))
+        img = flip(img)
+        mask = flip(mask.unsqueeze(0))
         img = img[:, y:y + self.img_h, x:x + self.img_w]
         mask = mask[:, y:y + self.img_h, x:x + self.img_w]
         img = self.resize(img)

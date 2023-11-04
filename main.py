@@ -51,17 +51,13 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    batch_size = 1
+    batch_size = 16
     root = './culane/data/'
-    dataset = LaneDataset(split='val', root=root, subset=100, normalize=True)
-    loader = DataLoader(dataset=dataset,
-                        batch_size=batch_size,
-                        shuffle=False,
-                        worker_init_fn=_worker_init_fn_)
+    loader = get_dataloader('val', 32, 100, True)
     pbar = tqdm(loader)
     from models.model_collection import get_vitt
     model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_17.model')
+    state_dict = torch.load('models/checkpoints/vitt/model_1698942449_vitt_5.model')
     model.load_state_dict(state_dict)
     model.to(device)
     model.training = True

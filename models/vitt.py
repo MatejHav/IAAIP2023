@@ -1,14 +1,6 @@
 from typing import Union, Callable, Optional
-
-import numpy as np
-import torch
-import math
 import warnings
-
 warnings.filterwarnings("ignore")
-
-from torch import nn
-from torchvision.models import get_model
 from torchvision.transforms import Resize
 from models.models_mae import *
 from main import get_dataloader

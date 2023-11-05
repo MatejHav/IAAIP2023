@@ -2,40 +2,17 @@ import math
 
 import cv2
 import numpy as np
-import imgaug.augmenters as iaa
 import torch
-from PIL import Image
-from imgaug.augmenters import Resize
-from timm.models.vision_transformer import PatchEmbed
-from torch import nn
-from torchvision import transforms
 import torchvision.transforms as T
-from scipy import ndimage
-from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from torch.utils.data.dataset import Dataset
 
 from culane.culane import CULane
 
-GT_COLOR = (255, 0, 0)
-PRED_HIT_COLOR = (0, 255, 0)
-PRED_MISS_COLOR = (0, 0, 255)
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
 IMAGENET_STD = np.array([0.229, 0.224, 0.225])
-GROUND_TRUTH_GRID = (64, 160)
 
 # Based on: https://github.com/lucastabelini/LaneATT/tree/2f8583ba14eccba05e6779668bc3a38bc751984a
-#
-
-def adjust_ground_truth(img, item, augmentation, angle=None):
-    lanes = item['lanes']
-    for lane in lanes:
-        for i in range(len(lane)):
-            match augmentation:
-                case 'flip':
-                    lane[i] = (img.shape[1] - lane[i][0], lane[i][1])
-                case _:
-                    raise Exception
 
 
 class LaneDataset(Dataset):

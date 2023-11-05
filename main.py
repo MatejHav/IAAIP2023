@@ -1,6 +1,3 @@
-import gc
-
-import torch
 from culane.lane_dataset import LaneDataset, IMAGENET_MEAN, IMAGENET_STD
 from torch.utils.data import DataLoader
 import random
@@ -8,11 +5,6 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import cv2
-import imgaug.augmenters as iaa
-from scipy import ndimage
-import torchvision.transforms.functional as TF
-
-from models.vit_autoencoder import ViTAutoencoder
 
 
 def _worker_init_fn_(_):
@@ -68,7 +60,7 @@ if __name__ == '__main__':
     state_dict = torch.load('models/checkpoints/vitt/model_1698942449_vitt_5.model')
     model.load_state_dict(state_dict)
     model.to(device)
-    model.training = False
+    model.training = True
     threshold = 0.5
 
     for i, (images, masks) in enumerate(pbar):

@@ -10,19 +10,20 @@ warnings.filterwarnings("ignore")
 from torch import nn
 from torchvision.models import get_model
 from torchvision.transforms import Resize
-from models.models_mae import *
+from local_models.models_mae import *
 from main import get_dataloader
-from models.positional_encoder.pe import PositionalEncoding
+from local_models.positional_encoder.pe import PositionalEncoding
 from torch.nn import functional as F
+from detr import Detr
 
 
-class ViTT(nn.Module):
+class ViTT_detr_mem(nn.Module):
 
     def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=1, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.out = out_dim
         self.vit = mae_vit_base_patch16()
-        state_dict = torch.load('./models/checkpoints/mae_pretrain_vit_base.pth')['model']
+        state_dict = torch.load('./local_models/checkpoints/mae_pretrain_vit_base.pth')['model']
         for key in state_dict:
             self.vit.state_dict()[key] = state_dict[key]
             self.vit.state_dict()[key].requires_grad = False
@@ -39,6 +40,7 @@ class ViTT(nn.Module):
         self.up_sampler = nn.Sequential(
             nn.UpsamplingBilinear2d(size=out_dim)
         )
+        self.detr = Detr(9)
         self.resize = Resize((48, 48))
         self.dropout = nn.Dropout(dropout)
         self.sigmoid = nn.Sigmoid()
@@ -49,7 +51,15 @@ class ViTT(nn.Module):
         memory = self.vit(x)
         memory = self.down_sampler(memory).mean(dim=1)
         B, H, W = memory.shape
+
+        detr_output = self.detr.get_detr_transformer_output(x)
+        detr_output = torch.flatten(detr_output, start_dim=1)
+        memory = memory.view(memory.shape[0], memory.shape[1]*memory.shape[2])
+        memory += detr_output
+
+
         memory = memory.view(B, 1, H * W)
+
         memory = self.pe(memory).view(B, H * W)
         # Initial target is unknown
         if self.training:
@@ -78,6 +88,73 @@ class ViTT(nn.Module):
             result = torch.stack(result)
         result = self.up_sampler(result).view(B, *self.out)
         return self.sigmoid(result)
+
+
+class ViTT(nn.Module):
+
+    def __init__(self, d_model, out_dim, nhead, device, dropout=0.1, num_decoder_layers=1, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.out = out_dim
+        self.vit = mae_vit_base_patch16()
+        state_dict = torch.load('./local_models/checkpoints/mae_pretrain_vit_base.pth')['model']
+        for key in state_dict:
+            self.vit.state_dict()[key] = state_dict[key]
+            self.vit.state_dict()[key].requires_grad = False
+        self.pe = PositionalEncoding(d_model=d_model)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, dim_feedforward=d_model, batch_first=True)
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers, None)
+        self.down_sampler = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=3, kernel_size=7, stride=2),
+            nn.AvgPool2d(kernel_size=3, stride=1),
+            nn.Conv2d(in_channels=3, out_channels=3, kernel_size=5, stride=2),
+            nn.AvgPool2d(kernel_size=3, stride=1),
+            nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, stride=1)
+        )
+        self.up_sampler = nn.Sequential(
+            nn.UpsamplingBilinear2d(size=out_dim)
+        )
+        self.detr = Detr(9)
+        self.resize = Resize((48, 48))
+        self.dropout = nn.Dropout(dropout)
+        self.sigmoid = nn.Sigmoid()
+        self.device = device
+
+    def forward(self, x: torch.Tensor, targets: torch.Tensor):
+        # MAE outputs the reconstructed image
+        memory = self.vit(x)
+        memory = self.down_sampler(memory).mean(dim=1)
+        B, H, W = memory.shape
+        memory = memory.view(B, 1, H * W)
+        memory = self.pe(memory).view(B, H * W)
+        # Initial target is unknown
+        # detr_output = self.detr.get_detr_transformer_output(x)
+        if self.training:
+            target = torch.zeros(1, H * W, device=x.device)
+            targets = self.resize(targets).view(B, H * W)
+            # cv2.imshow('img', memory[0].view(H, W).detach().cpu().numpy())
+            # cv2.waitKey(0)
+            targets = torch.concat((target, targets), dim=0)[:-1]
+            # Pass segments through the decoder
+            memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            result = []
+            for i in range(B):
+                target = self.decoder(targets[i].view(1, H * W), memory,
+                                      memory_mask=memory_mask[i].view(1, B)).view(1, H * W)
+                result.append(target.view(1, H, W))
+            result = torch.stack(result)
+        else:
+            target = torch.zeros(1, H * W, device=x.device)
+            # Pass segments through the decoder
+            memory_mask = torch.Tensor([[1 if j <= i else 0 for j in range(B)] for i in range(B)]).to(x.device)
+            result = []
+            for i in range(B):
+                target = self.decoder(target, memory,
+                                      memory_mask=memory_mask[i].view(1, B)).view(1, H * W)
+                result.append(target.view(1, H, W))
+            result = torch.stack(result)
+        result = self.up_sampler(result).view(B, *self.out)
+        return self.sigmoid(result)
+
 
 class TransformerDecoderLayer(nn.Module):
     __constants__ = ['batch_first', 'norm_first']

@@ -19,7 +19,7 @@ class Backbone(nn.Module):
             return
 
         if model_name == 'encoder':
-            self.model = torch.load('./models/backbone/encoder.model')
+            self.model = torch.load('./local_models/backbone/encoder.model')
             return
 
         # Remove the fully connected layer (classifier) at the end

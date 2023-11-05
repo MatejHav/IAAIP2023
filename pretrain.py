@@ -8,12 +8,12 @@ import torch
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 
-import models.mae_feature_extractor_testing as MAEFeatureExtractor
+import local_models.mae_feature_extractor_testing as MAEFeatureExtractor
 from main import get_dataloader
-from models.model_collection import *
+from local_models.model_collection import *
 
 model_name = 'resnet_autoencoder'
-save_path = "./models/checkpoints/pretrained_vit/"
+save_path = "local_models/checkpoints/pretrained_vit/"
 
 SHOW_IMAGE_PROGRESS = False
 SAVE_IMAGE_PROGRESS = True
@@ -83,7 +83,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 
                 # Save the image and include epoch number as well as "i" in the file name if SAVE_IMAGE_PROGRESS is True
                 if SAVE_IMAGE_PROGRESS == True:
-                    cv2.imwrite(f'./models/checkpoints/outputs/epoch_{epoch}_itt_{i}.jpg', output_image)
+                    cv2.imwrite(f'local_models/checkpoints/outputs/epoch_{epoch}_itt_{i}.jpg', output_image)
 
 
         losses['train'].append(total_loss_train / len(progress_bar_train))
@@ -148,7 +148,7 @@ def training_loop(num_epochs, dataloaders, model, device):
 #                         output_image = output_image.astype(np.uint8)
 
 #                     # Save without the BGR to RGB conversion, assuming the model output is already in RGB format.
-#                     # cv2.imwrite(f'./models/checkpoints/outputs/{i}.jpg', output_image)
+#                     # cv2.imwrite(f'./local_models/checkpoints/outputs/{i}.jpg', output_image)
 #                     cv2.imshow('input', input_image)
 #                     cv2.imshow('masked', mask_image)
 #                     cv2.imshow('output', output_image)
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         'test': get_dataloader('test', batch_size)
     }
 
-    # Define and choose model here. Most (backbone) models defined in this project will work here, assuming the model file has an encoder and decode.
+    # Define and choose model here. Most (backbone) local_models defined in this project will work here, assuming the model file has an encoder and decode.
     model = MAEFeatureExtractor.MAEFeatureExtraactor()
 
     training_loop(num_epochs, culane_dataloader, model, device)

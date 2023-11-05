@@ -12,7 +12,7 @@ import imgaug.augmenters as iaa
 from scipy import ndimage
 import torchvision.transforms.functional as TF
 
-from models.vit_autoencoder import ViTAutoencoder
+from local_models.vit_autoencoder import ViTAutoencoder
 
 
 def _worker_init_fn_(_):
@@ -61,46 +61,47 @@ if __name__ == '__main__':
         print("NO GPU RECOGNIZED.")
     batch_size = 1
     root = './culane/data/'
-    dataset = LaneDataset(split='train', root=root, subset=10, normalize=True)
-    loader = DataLoader(dataset=dataset,
-                        batch_size=batch_size,
-                        shuffle=False,
-                        worker_init_fn=_worker_init_fn_)
-    pbar = tqdm(loader)
-    from models.model_collection import get_vitt
-    model = get_vitt(device)
-    state_dict = torch.load('models/checkpoints/vitt/model_1698870738_vitt_8.model')
-    model.load_state_dict(state_dict)
-    model.to(device)
-    model.training = True
-    threshold = 0.5
-
-    for i, (images, masks) in enumerate(pbar):
-        # RUNNING TRAINED MODEL PREDICTIONS
-        images = images.to(device)
-        masks = masks.to(device)
-        with torch.no_grad():
-            labels = model(images, masks)
-        labels = labels.cpu()
-        masks = masks.cpu()
-        print(f'IoU: {compute_iou(labels, masks, threshold=threshold):.3f}')
-
-        batch_size = images.shape[0]
-        for j, img in enumerate(images):
-            y, x = np.where(labels[j] >= threshold)
-            y_gt, x_gt = np.where(masks[j] >= threshold)
-            y_over, x_over = np.where(np.logical_and(labels[j] >= threshold, masks[j] >= threshold))
-            img = img.cpu().numpy()
-            img = np.transpose(img, axes=[1, 2, 0])
-            img = img * IMAGENET_STD + IMAGENET_MEAN
-            img[y, x, 0] = (labels[j, y, x] - labels[j].min()) / labels[j].max()
-            img[y, x, 1] = 0
-            img[y, x, 2] = 0
-            img[y_gt, x_gt, 0] = 0
-            img[y_gt, x_gt, 1] = 1
-            img[y_gt, x_gt, 2] = 0
-            img[y_over, x_over, 0] = 0
-            img[y_over, x_over, 1] = 0
-            img[y_over, x_over, 2] = 1
-            cv2.imshow('original', img)
-            cv2.waitKey(50)
+    dataset = LaneDataset(split='train', root=root, subset=1, normalize=True)
+    it = dataset.__getitem__(33)
+    # loader = DataLoader(dataset=dataset,
+    #                     batch_size=batch_size,
+    #                     shuffle=False,
+    #                     worker_init_fn=_worker_init_fn_)
+    # pbar = tqdm(loader)
+    # from local_models.model_collection import get_vitt
+    # model = get_vitt(device)
+    # state_dict = torch.load('local_models/checkpoints/vitt/model_1699003004_vitt_150.model')
+    # model.load_state_dict(state_dict)
+    # model.to(device)
+    # model.training = True
+    # threshold = 0.5
+    #
+    # for i, (images, masks) in enumerate(pbar):
+    #     # RUNNING TRAINED MODEL PREDICTIONS
+    #     images = images.to(device)
+    #     masks = masks.to(device)
+    #     with torch.no_grad():
+    #         labels = model(images, masks)
+    #     labels = labels.cpu()
+    #     masks = masks.cpu()
+    #     print(f'IoU: {compute_iou(labels, masks, threshold=threshold):.3f}')
+    #
+    #     batch_size = images.shape[0]
+    #     for j, img in enumerate(images):
+    #         y, x = np.where(labels[j] >= threshold)
+    #         y_gt, x_gt = np.where(masks[j] >= threshold)
+    #         y_over, x_over = np.where(np.logical_and(labels[j] >= threshold, masks[j] >= threshold))
+    #         img = img.cpu().numpy()
+    #         img = np.transpose(img, axes=[1, 2, 0])
+    #         img = img * IMAGENET_STD + IMAGENET_MEAN
+    #         img[y, x, 0] = (labels[j, y, x] - labels[j].min()) / labels[j].max()
+    #         img[y, x, 1] = 0
+    #         img[y, x, 2] = 0
+    #         img[y_gt, x_gt, 0] = 0
+    #         img[y_gt, x_gt, 1] = 1
+    #         img[y_gt, x_gt, 2] = 0
+    #         img[y_over, x_over, 0] = 0
+    #         img[y_over, x_over, 1] = 0
+    #         img[y_over, x_over, 2] = 1
+    #         cv2.imshow('original', img)
+    #         cv2.waitKey(50)

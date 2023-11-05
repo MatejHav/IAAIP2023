@@ -10,8 +10,8 @@ from tqdm import tqdm
 import cv2
 from IPython.display import display
 
-from models.backbone.backbone import Backbone
-from models.model_collection import get_vitt
+from local_models.backbone.backbone import Backbone
+from local_models.model_collection import get_vitt
 
 
 def transform_output_to_mask(y, x, output, img):
@@ -115,8 +115,8 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
     transforms = torchvision.transforms.Resize(size=(576, 576))
     models = [
-        {'path': './models/checkpoints/vitt/model_1697726243_vitt_91.model', 'name': 'vitt',
-         'backbone': torch.nn.Sequential(transforms, torch.load('./models/backbone/encoder.model'))}
+        {'path': './local_models/checkpoints/vitt/model_1697726243_vitt_91.model', 'name': 'vitt',
+         'backbone': torch.nn.Sequential(transforms, torch.load('local_models/backbone/encoder.model'))}
     ]
     root = './results/'
     os.makedirs(root, exist_ok=True)

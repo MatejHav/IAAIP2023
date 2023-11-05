@@ -31,7 +31,7 @@ class ViTAutoencoder(nn.Module):
 
         # # check if model is in eval mode, then load the decoder checkpoint.
         # if self.eval:
-        #     self.vit = torch.load('./models/checkpoints/mask/encoder.model', map_location=torch.device('cpu'))
+        #     self.vit = torch.load('./local_models/checkpoints/mask/encoder.model', map_location=torch.device('cpu'))
 
         #     print(f"LOADING MODEL FROM CHECKPOINT IN TEST MODE")
 

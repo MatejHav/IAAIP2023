@@ -6,7 +6,7 @@ import torch.nn
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 from main import *
-from models.model_collection import *
+from local_models.model_collection import *
 from utils import FocalLoss_poly
 from torchvision.ops import sigmoid_focal_loss
 
@@ -36,6 +36,14 @@ def training_loop(num_epochs, dataloaders, models, device):
         model.to(device)
         optimizer = AdamW(model.parameters(), weight_decay=1e-10, lr=1e-5)
         loss_function = lambda pred, tar : 1 - iou_loss(pred, tar)
+        losses = {
+            'train': [],
+            'val': []
+        }
+        ious = {
+            'train': [],
+            'val': []
+        }
         for epoch in range(num_epochs):
             losses = {
                 'train': [],
@@ -59,6 +67,7 @@ def training_loop(num_epochs, dataloaders, models, device):
                 predictions = model(batch, targets)
                 # Compute loss
                 loss = loss_function(predictions, targets)
+                # print(loss.grad)
                 loss.backward()
                 # Learn
                 optimizer.step()
@@ -81,7 +90,7 @@ def training_loop(num_epochs, dataloaders, models, device):
             progress_bar_val.set_description(f"[VALIDATION] | EPOCH {epoch} | ")
             total_loss_val = 0
             model.training = False
-            for batch, _, targets, _ in progress_bar_val:
+            for batch, targets in progress_bar_val:
                 batch = batch.to(device)
                 targets = targets.to(device)
                 with torch.no_grad():
@@ -93,10 +102,6 @@ def training_loop(num_epochs, dataloaders, models, device):
                     ious['val'].append(intersect_over_union)
             total_loss_val /= len(progress_bar_val)
             print(f'EPOCH {epoch} | TOTAL VALIDATION LOSS: {round(total_loss_val, 3)}')
-
-            # Save model and statistics
-            path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{epoch}.model")
-            torch.save(model.state_dict(), path)
             os.makedirs(os.path.join(models[model_name]['path'], 'stats'), exist_ok=True)
             with open(os.path.join(models[model_name]['path'], 'stats',
                                    f"loss_model_{saved_time}_{model_name}_{epoch}.json"),
@@ -106,7 +111,12 @@ def training_loop(num_epochs, dataloaders, models, device):
                                    f"iou_model_{saved_time}_{model_name}_{epoch}.json"),
                       'w') as file:
                 json.dump(ious, file)
-            print(f"MODEL SAVED IN {path}")
+
+        # Save model and statistics
+        path = os.path.join(models[model_name]['path'], f"model_{saved_time}_{model_name}_{num_epochs}.model")
+        torch.save(model.state_dict(), path)
+
+        print(f"MODEL SAVED IN {path}")
 
 
 if __name__ == "__main__":
@@ -122,15 +132,15 @@ if __name__ == "__main__":
         print("NO GPU RECOGNIZED.")
 
     # Training Parameters
-    num_epochs = 200
+    num_epochs = 150
     batch_size = 8
     culane_dataloader = {
-        'train': (get_dataloader, ('train', batch_size, 100, True)),
-        'val': (get_dataloader, ('val', batch_size, 100, True)),
-        'test': (get_dataloader, ('test', batch_size, 100, True))
+        'train': (get_dataloader, ('train', batch_size, 1, True)),
+        'val': (get_dataloader, ('val', batch_size, 20, True)),
+        'test': (get_dataloader, ('test', batch_size, 20, True))
     }
     models = {
-        "vitt": {"model": get_vitt(device), "path": "./models/checkpoints/vitt/"}
+        "vitt": {"model": get_vitt(device), "path": "./local_models/checkpoints/vitt/"}
     }
 
     training_loop(num_epochs, culane_dataloader, models, device)

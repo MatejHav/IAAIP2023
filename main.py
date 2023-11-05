@@ -1,14 +1,10 @@
-import gc
-
-import torch
-from culane.lane_dataset import LaneDataset
+from culane.lane_dataset import LaneDataset, IMAGENET_MEAN, IMAGENET_STD
 from torch.utils.data import DataLoader
 import random
 import numpy as np
+import torch
 from tqdm import tqdm
 import cv2
-
-from models.backbone.backbone import Backbone
 
 
 def _worker_init_fn_(_):
@@ -18,17 +14,32 @@ def _worker_init_fn_(_):
     np.random.seed(np_seed)
 
 
-def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30):
+def get_dataloader(split: str = 'train', batch_size: int = 30, subset=30, shuffle=True):
     root = './culane/data/'
-    dataset = LaneDataset(split=split, root=root, load_formatted=False, subset=subset, normalize=False)
+    dataset = LaneDataset(split=split, root=root, subset=subset, normalize=True)
+
+    if not shuffle:
+        loader = DataLoader(dataset=dataset,
+                            batch_size=batch_size,
+                            shuffle=False,
+                            worker_init_fn=_worker_init_fn_)
+        return loader
+    batch_sampler = np.arange(0, len(dataset))
+    batch_sampler = np.pad(batch_sampler, (0, max(len(dataset) - (len(dataset) // batch_size + 1) * batch_size,
+                                                  (len(dataset) // batch_size + 1) * batch_size - len(dataset))),
+                           mode='constant', constant_values=0)
+    batch_sampler = batch_sampler.reshape((len(dataset) // batch_size + 1, batch_size))
+    np.random.shuffle(batch_sampler)
     loader = DataLoader(dataset=dataset,
-                              batch_size=batch_size,
-                              shuffle=False,  # Should shuffle the batches for each epoch
-                              worker_init_fn=_worker_init_fn_)
+                        batch_sampler=batch_sampler,
+                        worker_init_fn=_worker_init_fn_)
     return loader
 
+def compute_iou(pred, tar, threshold=0.5):
+    up = torch.logical_and(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    down = torch.logical_or(pred >= threshold, tar >= threshold).sum(dim=[1, 2])
+    return (up / (down + 1e-6)).mean().item()
 
-idx = 0
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -40,54 +51,44 @@ if __name__ == '__main__':
     else:
         device = torch.device("cpu")
         print("NO GPU RECOGNIZED.")
-    train_loader = get_dataloader('train', batch_size=10, subset=30)
-    num_epochs = 10
-    pbar = tqdm(train_loader)
-    backbone = Backbone('resnet34')
-    backbone.to(device)
-    model = torch.load('./models/checkpoints/mask/model_1697034426_0.model')
+    batch_size = 16
+    root = './culane/data/'
+    loader = get_dataloader('val', 32, 100, True)
+    pbar = tqdm(loader)
+    from models.model_collection import get_vitt
+    model = get_vitt(device)
+    state_dict = torch.load('models/checkpoints/vitt/model_1698942449_vitt_5.model')
+    model.load_state_dict(state_dict)
     model.to(device)
-    for i, (images, lanes, masks, _) in enumerate(pbar):
-        # What we're doing here: the original tensor is likely in the format (channels, height, width)
-        # commonly used in PyTorch. However, many image processing libraries expect the channels to be
-        # the last dimension, i.e., (height, width, channels).
-        # .permute(1, 2, 0) swaps the dimensions so that the channels dimension becomes the last one.
-        # This is done to match the channel order expected by most image display functions.
-        # batch_size = images.shape[0]
-        # for j, _ in enumerate(images):
-        #     # Need to multiply the batch_size with the index to get the actual correct frame
-        #     label_img, _, _ = train_loader.dataset.draw_annotation(batch_size * i + j)
-        #     cv2.imshow('img', label_img)
-        #     cv2.waitKey(500)
-        # cv2.waitKey(0)
+    model.training = True
+    threshold = 0.5
 
+    for i, (images, masks) in enumerate(pbar):
         # RUNNING TRAINED MODEL PREDICTIONS
         images = images.to(device)
+        masks = masks.to(device)
         with torch.no_grad():
-            batch_of_segments = backbone(images)
-            labels = model(batch_of_segments)
+            labels = model(images, masks)
         labels = labels.cpu()
-        
-        del batch_of_segments
-        gc.collect()
-        torch.cuda.empty_cache()
+        masks = masks.cpu()
+        print(f'IoU: {compute_iou(labels, masks, threshold=threshold):.3f}')
+
         batch_size = images.shape[0]
         for j, img in enumerate(images):
-            # Need to multiply the batch_size with the index to get the actual correct frame
-            # img = np.swapaxes(img, axis1=0, axis2=1)
-            # img = np.swapaxes(img, axis1=1, axis2=2)
-            # labels_mean = torch.mean(labels[j], dim=0)
-            # labels_stddev = torch.std(labels[j], dim=0)
-            # print(labels_mean)
-            # print(labels_stddev)
-            # print(labels)
-            y, x = np.where(labels[j] >= 0.3)
-            # print('x = ', x, 'y = ', y)
+            y, x = np.where(labels[j] >= threshold)
+            y_gt, x_gt = np.where(masks[j] >= threshold)
+            y_over, x_over = np.where(np.logical_and(labels[j] >= threshold, masks[j] >= threshold))
             img = img.cpu().numpy()
-            img[0, y, x] = labels[j, y, x]
-            img[1, y, x] = 1
-            img[2, y, x] = 1
             img = np.transpose(img, axes=[1, 2, 0])
-            cv2.imshow('img', img)
+            img = img * IMAGENET_STD + IMAGENET_MEAN
+            img[y, x, 0] = (labels[j, y, x] - labels[j].min()) / labels[j].max()
+            img[y, x, 1] = 0
+            img[y, x, 2] = 0
+            img[y_gt, x_gt, 0] = 0
+            img[y_gt, x_gt, 1] = 1
+            img[y_gt, x_gt, 2] = 0
+            img[y_over, x_over, 0] = 0
+            img[y_over, x_over, 1] = 0
+            img[y_over, x_over, 2] = 1
+            cv2.imshow('original', img)
             cv2.waitKey(50)
-        # cv2.waitKey(0)

@@ -36,7 +36,22 @@ def plot_one_epoch(path, epoch, label, median_label, title, x_axis, y_axis):
 def compute_iou(pred, tar, threshold=0.5):
     up = torch.logical_and(pred >= threshold, tar >= 0.5).sum(dim=[1, 2])
     down = torch.logical_or(pred >= threshold, tar >= 0.5).sum(dim=[1, 2])
-    return (up / (down + 1e-6)).mean().item()
+    return ((up + 1e-6) / (down + 1e-6)).mean().item()
+
+def compute_accuracy(pred, tar, threshold=0.5):
+    true_positives = torch.logical_and(pred >= threshold, tar >= 0.5).sum(dim=[1, 2])
+    true_negatives = torch.logical_and(pred < threshold, tar < 0.5).sum(dim=[1, 2])
+    return ((true_positives + true_negatives + 1e-6) / (np.prod(pred.shape[1:]) + 1e-6)).mean().item()
+
+def compute_precision(pred, tar, threshold=0.5):
+    true_positives = torch.logical_and(pred >= threshold, tar >= 0.5).sum(dim=[1, 2])
+    false_positives = torch.logical_and(pred >= threshold, tar < 0.5).sum(dim=[1, 2])
+    return ((true_positives + 1e-6) / (true_positives + false_positives + 1e-6)).mean().item()
+
+def compute_recall(pred, tar, threshold=0.5):
+    true_positives = torch.logical_and(pred >= threshold, tar >= 0.5).sum(dim=[1, 2])
+    false_negatives = torch.logical_and(pred < threshold, tar >= 0.5).sum(dim=[1, 2])
+    return ((true_positives + 1e-6) / (true_positives + false_negatives + 1e-6)).mean().item()
 
 def plot_epochs(path, train_label, val_label, title, max_epoch, x_axis, y_axis):
     train_stat_mean = []
@@ -134,6 +149,43 @@ def iou_through_thresholds(model, batch_size, number_of_thresholds):
     plt.title('Change of IoU score over different thresholds on the test set')
     plt.show()
 
+def metrics_on_test_set(model, batch_size):
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("CUDA RECOGNIZED.")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        print("MPS RECOGNIZED.")
+    else:
+        device = torch.device("cpu")
+        print("NO GPU RECOGNIZED.")
+    model.to(device)
+    loader = get_dataloader('test', batch_size, 100, True)
+    pbar = tqdm(loader)
+    model.training = False
+    iou = []
+    accuracy = []
+    f1 = []
+    precision = []
+    recall = []
+
+    for i, (images, masks) in enumerate(pbar):
+        # RUNNING TRAINED MODEL PREDICTIONS
+        images = images.to(device)
+        masks = masks.to(device)
+        with torch.no_grad():
+            labels = model(images, masks)
+        iou.append(compute_iou(labels, masks, threshold=0.5))
+        accuracy.append(compute_accuracy(labels, masks, threshold=0.5) / len(pbar))
+        pred_precision = compute_precision(labels, masks, threshold=0.5)
+        pred_recall = compute_recall(labels, masks, threshold=0.5)
+        pred_f1 = (pred_precision * pred_recall + 1e-6) / (pred_precision + pred_recall + 1e-6)
+        precision.append(pred_precision / len(pbar))
+        recall.append(pred_recall / len(pbar))
+        f1.append(pred_f1 / len(pbar))
+
+    print(f"FINAL RESULTS:\nIoU: {np.mean(iou)}\nACCURACY: {np.mean(accuracy)}\nPRECISION: {np.mean(precision)}\nRECALL: {np.mean(recall)}\nF1: {np.mean(f1)}")
+
 
 if __name__ == '__main__':
     # max_epochs = 7
@@ -149,5 +201,6 @@ if __name__ == '__main__':
     model = get_vitt(None)
     state_dict = torch.load('models/checkpoints/vitt/model_1699126061_vitt_6.model')
     model.load_state_dict(state_dict)
-    plot_iou_across_frame(model, 15, get_dataloader('val', 15, 100, True), training=False)
+    # plot_iou_across_frame(model, 15, get_dataloader('test', 15, 100, True), training=False)
+    metrics_on_test_set(model, 15)
     # iou_through_thresholds(model, 15, 35)

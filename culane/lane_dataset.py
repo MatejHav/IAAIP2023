@@ -97,7 +97,7 @@ class LaneDataset(Dataset):
         temp = np.column_stack((x1, y1, x2, y2))
 
         for x1, y1, x2, y2 in temp:
-            cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=3)
+            cv2.line(mask, (x1, y1), (x2, y2), color=(1, 1, 1), thickness=10)
 
         return mask[:, :, 0].astype(np.float32)
 

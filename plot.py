@@ -176,13 +176,13 @@ def metrics_on_test_set(model, batch_size):
         with torch.no_grad():
             labels = model(images, masks)
         iou.append(compute_iou(labels, masks, threshold=0.5))
-        accuracy.append(compute_accuracy(labels, masks, threshold=0.5) / len(pbar))
+        accuracy.append(compute_accuracy(labels, masks, threshold=0.5))
         pred_precision = compute_precision(labels, masks, threshold=0.5)
         pred_recall = compute_recall(labels, masks, threshold=0.5)
         pred_f1 = (pred_precision * pred_recall + 1e-6) / (pred_precision + pred_recall + 1e-6)
-        precision.append(pred_precision / len(pbar))
-        recall.append(pred_recall / len(pbar))
-        f1.append(pred_f1 / len(pbar))
+        precision.append(pred_precision)
+        recall.append(pred_recall)
+        f1.append(pred_f1)
 
     print(f"FINAL RESULTS:\nIoU: {np.mean(iou)}\nACCURACY: {np.mean(accuracy)}\nPRECISION: {np.mean(precision)}\nRECALL: {np.mean(recall)}\nF1: {np.mean(f1)}")
 
